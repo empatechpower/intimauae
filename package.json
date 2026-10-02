@@ -1,0 +1,20 @@
+{
+  "name": "intimauae",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c magenta,cyan \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "build": "npm run build -w apps/web",
+    "seed": "node scripts/seed-from-static.mjs",
+    "bootstrap": "node scripts/bootstrap-supabase.mjs",
+    "db:migrate": "npx supabase db push",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  }
+}

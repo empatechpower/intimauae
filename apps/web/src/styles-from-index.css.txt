@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Intimauae | Premium Body Products UAE</title>
+  <meta name="description" content="Shop Full Body, Partial Body, and Trunk products from Intimauae. Discreet shipping across the UAE.">
+  <link rel="icon" type="image/png" href="/assets/images/icon-pink.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --pink: #ff009a;
+      --pink-dark: #d60082;
+      --bg: #0b1320;
+      --bg2: #131e2b;
+      --card: #182433;
+      --text: #ffffff;
+      --muted: #9aa6b2;
+      --line: rgba(255,255,255,.08);
+      --max: 1280px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Jost, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+    .wrap { width: min(100% - 32px, var(--max)); margin-inline: auto; }
+
+    /* Announcement */
+    .announce {
+      background: var(--pink);
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 72px;
+    }
+    .logo img { height: 36px; width: auto; }
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+    }
+    .nav a {
+      font-size: 14px;
+      font-weight: 600;
+      opacity: .92;
+      padding: 6px 0;
+      border-bottom: 2px solid transparent;
+    }
+    .nav a:hover, .nav a.active { color: var(--pink); border-bottom-color: var(--pink); }
+    .header-actions { display: flex; gap: 14px; align-items: center; }
+    .header-actions a { opacity: .9; font-size: 13px; font-weight: 600; }
+    .header-actions a:hover { color: var(--pink); }
+    .menu-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--line);
+      color: #fff;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    /* Hero slider */
+    .hero {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      min-height: clamp(280px, 42vw, 520px);
+    }
+    .hero-track {
+      display: flex;
+      transition: transform .55s ease;
+      height: 100%;
+    }
+    .hero-slide {
+      min-width: 100%;
+      position: relative;
+      min-height: clamp(280px, 42vw, 520px);
+    }
+    .hero-slide img {
+      width: 100%;
+      height: clamp(280px, 42vw, 520px);
+      object-fit: cover;
+      object-position: center top;
+    }
+    .hero-caption {
+      position: absolute;
+      inset: auto 0 0 0;
+      padding: 28px 20px 34px;
+      background: linear-gradient(transparent, rgba(0,0,0,.78));
+    }
+    .hero-caption h1 {
+      font-family: Poppins, sans-serif;
+      font-size: clamp(22px, 4vw, 42px);
+      line-height: 1.15;
+      max-width: 720px;
+    }
+    .hero-caption p { color: #d7dde5; margin-top: 8px; max-width: 560px; }
+    .hero-cta {
+      display: inline-block;
+      margin-top: 14px;
+      background: var(--pink);
+      color: #fff;
+      font-weight: 700;
+      padding: 12px 20px;
+    }
+    .hero-cta:hover { background: var(--pink-dark); }
+    .hero-nav {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      padding: 0 12px;
+    }
+    .hero-nav button {
+      pointer-events: auto;
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(0,0,0,.45);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .hero-dots {
+      position: absolute;
+      left: 0; right: 0; bottom: 12px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+    .hero-dots button {
+      width: 9px; height: 9px; border-radius: 50%;
+      border: 0; background: rgba(255,255,255,.35); cursor: pointer;
+    }
+    .hero-dots button.on { background: var(--pink); }
+
+    /* Sections */
+    .section { padding: 48px 0 20px; }
+    .section-head {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+    .section-head .eyebrow {
+      color: var(--pink);
+      font-weight: 700;
+      letter-spacing: .08em;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .section-head h2 {
+      font-family: Poppins, sans-serif;
+      font-size: clamp(24px, 3vw, 34px);
+      margin-top: 6px;
+    }
+    .section-head p { color: var(--muted); margin-top: 6px; }
+
+    /* Category cards */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .cat-card {
+      position: relative;
+      overflow: hidden;
+      background: var(--card);
+      min-height: 280px;
+    }
+    .cat-card img {
+      width: 100%;
+      height: 320px;
+      object-fit: cover;
+      transition: transform .4s ease;
+    }
+    .cat-card:hover img { transform: scale(1.05); }
+    .cat-card span {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 18px 16px;
+      background: linear-gradient(transparent, rgba(0,0,0,.8));
+      font-family: Poppins, sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    /* Product grid */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .product-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .product-card .thumb {
+      position: relative;
+      background: #101821;
+      aspect-ratio: 3/4;
+      overflow: hidden;
+    }
+    .product-card .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .product-card .meta { padding: 14px 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .product-card .vendor { color: var(--pink); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .product-card .title { font-size: 14px; font-weight: 600; line-height: 1.35; min-height: 38px; }
+    .product-card .price { margin-top: auto; font-weight: 700; }
+    .product-card .price s { color: var(--muted); font-weight: 500; margin-right: 8px; font-size: 13px; }
+    .view-all {
+      display: inline-block;
+      margin: 22px auto 0;
+      border: 1px solid rgba(255,255,255,.25);
+      padding: 10px 18px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .view-all:hover { border-color: var(--pink); color: var(--pink); }
+    .center { text-align: center; }
+
+    /* Footer */
+    .footer {
+      margin-top: 56px;
+      background: #080e17;
+      border-top: 1px solid var(--line);
+      padding: 40px 0 24px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 24px;
+    }
+    .footer h4 { font-family: Poppins, sans-serif; margin-bottom: 12px; font-size: 15px; }
+    .footer a, .footer p { color: var(--muted); font-size: 14px; display: block; margin-bottom: 8px; }
+    .footer a:hover { color: var(--pink); }
+    .copy { margin-top: 28px; color: #667280; font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+    /* Age gate */
+    .age-gate {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(90,90,90,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .age-gate.show { display: flex; }
+    .age-card {
+      background: rgba(255,255,255,.94);
+      color: #333;
+      max-width: 520px;
+      width: 100%;
+      padding: 36px 28px;
+      text-align: center;
+    }
+    .age-card h2 { font-family: Poppins, sans-serif; font-size: 26px; margin-bottom: 12px; }
+    .age-card p { color: #6f6f6f; margin-bottom: 22px; }
+    .age-actions { display: flex; gap: 10px; justify-content: center; }
+    .age-actions button {
+      border: 0; min-width: 130px; padding: 13px 24px;
+      font-weight: 700; cursor: pointer; font-size: 15px;
+    }
+    .btn-enter { background: var(--pink); color: #fff; }
+    .btn-cancel { background: #a0a0a0; color: #fff; }
+
+    @media (max-width: 980px) {
+      .product-grid { grid-template-columns: repeat(3, 1fr); }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 760px) {
+      .nav { display: none; }
+      .nav.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 72px; left: 0; right: 0;
+        background: var(--bg2);
+        padding: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .menu-btn { display: inline-block; }
+      .cat-grid, .product-grid { grid-template-columns: repeat(2, 1fr); }
+      .header-inner { position: relative; }
+    }
+    @media (max-width: 480px) {
+      .product-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .cat-card img { height: 220px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="announce">Summer Sale | 15% OFF for All + Freebies | Code: <strong>INTIMA15</strong></div>
+
+  <header class="header">
+    <div class="wrap header-inner">
+      <a class="logo" href="/"><img src="/assets/images/logo-pink.png" alt="Intimauae"></a>
+      <nav class="nav" id="mainNav">
+        <a href="/" class="active">Home</a>
+        <a href="/catalogs">All Products</a>
+        <a href="/catalogs?category=full-body">Full Body Products</a>
+        <a href="/catalogs?category=partial-body">Partial Body Products</a>
+        <a href="/catalogs?category=trunk">Trunk</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </nav>
+      <div class="header-actions">
+        <a href="/cart">Cart</a>
+        <button class="menu-btn" type="button" id="menuBtn" aria-label="Menu">Menu</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="hero-track" id="heroTrack">
+      <div class="hero-slide">
+        <img src="/assets/images/hero/slide-2.png" alt="Intimauae Full Body">
+        <div class="hero-caption wrap">
+          <h1>Full Body Products</h1>
+          <p>Lifelike full-size companions from Intimauae — premium materials, discreet UAE shipping.</p>
+          <a class="hero-cta" href="/catalogs?category=full-body">Shop Full Body</a>
+        </div>
+      </div>
+      <div class="hero-slide">
+        <img src="/assets/images/hero/slide-3.png" alt="Intimauae Partial Body">
+        <div class="hero-caption wrap">
+          <h1>Partial Body Products</h1>
+          <p>Torsos, busts, and specialty forms with soft realistic finish.</p>
+          <a class="hero-cta" href="/catalogs?category=partial-body">Shop Partial Body</a>
+        </div>
+      </div>
+      <div class="hero-slide">
+        <img src="/assets/images/hero/slide-6.jpg" alt="Intimauae Trunk">
+        <div class="hero-caption wrap">
+          <h1>Trunk Collection</h1>
+          <p>Compact trunk and half-body models designed for realistic feel and easy storage.</p>
+          <a class="hero-cta" href="/catalogs?category=trunk">Shop Trunk</a>
+        </div>
+      </div>
+      <div class="hero-slide">
+        <img src="/assets/images/hero/slide-4.jpg" alt="Featured Intimauae Doll">
+        <div class="hero-caption wrap">
+          <h1>Premium Intimauae Catalog</h1>
+          <p>All products sourced from intimauae.ae — branded for your storefront.</p>
+          <a class="hero-cta" href="/catalogs">Browse All</a>
+        </div>
+      </div>
+      <div class="hero-slide">
+        <img src="/assets/images/hero/slide-5.png" alt="Silicone Body">
+        <div class="hero-caption wrap">
+          <h1>Silicone & TPE Selection</h1>
+          <p>Studio-quality finishes with clear categories and fast local image loading.</p>
+          <a class="hero-cta" href="/catalogs?category=full-body">View Dolls</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-nav">
+      <button type="button" id="heroPrev" aria-label="Previous">‹</button>
+      <button type="button" id="heroNext" aria-label="Next">›</button>
+    </div>
+    <div class="hero-dots" id="heroDots"></div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">From Intimauae.ae</div>
+        <h2>Shop by Category</h2>
+        <p>Same categories as your main store — Full Body, Partial Body, and Trunk.</p>
+      </div>
+      <div class="cat-grid">
+        <a class="cat-card" href="/catalogs?category=full-body">
+          <img src="/assets/images/hero/slide-2.png" alt="Full Body Products">
+          <span>Full Body Products</span>
+        </a>
+        <a class="cat-card" href="/catalogs?category=partial-body">
+          <img src="/assets/images/hero/slide-3.png" alt="Partial Body Products">
+          <span>Partial Body Products</span>
+        </a>
+        <a class="cat-card" href="/catalogs?category=trunk">
+          <img src="/assets/images/products/female-torso-p7209715-1.jpg" alt="Trunk">
+          <span>Trunk</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="full-body">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Whole Body</div>
+        <h2>Full Body Products</h2>
+      </div>
+      <div class="product-grid" id="grid-full"></div>
+      <div class="center"><a class="view-all" href="/catalogs?category=full-body">View all Full Body</a></div>
+    </div>
+  </section>
+
+  <section class="section" id="partial-body">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Local Part</div>
+        <h2>Partial Body Products</h2>
+      </div>
+      <div class="product-grid" id="grid-partial"></div>
+      <div class="center"><a class="view-all" href="/catalogs?category=partial-body">View all Partial Body</a></div>
+    </div>
+  </section>
+
+  <section class="section" id="trunk">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Torso & Trunk</div>
+        <h2>Trunk</h2>
+      </div>
+      <div class="product-grid" id="grid-trunk"></div>
+      <div class="center"><a class="view-all" href="/catalogs?category=trunk">View all Trunk</a></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="wrap footer-grid">
+      <div>
+        <img src="/assets/images/logo-pink.png" alt="Intimauae" style="height:34px;margin-bottom:12px;">
+        <p>Premium body products inspired by intimauae.ae. Discreet packaging and worldwide-ready checkout flow.</p>
+      </div>
+      <div>
+        <h4>Categories</h4>
+        <a href="/catalogs?category=full-body">Full Body Products</a>
+        <a href="/catalogs?category=partial-body">Partial Body Products</a>
+        <a href="/catalogs?category=trunk">Trunk</a>
+      </div>
+      <div>
+        <h4>Help</h4>
+        <a href="/faqs">FAQs</a>
+        <a href="/contact">Contact</a>
+        <a href="/policies/shipping-policy">Shipping</a>
+        <a href="/policies/refund-policy">Refunds</a>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <a href="/about">About Us</a>
+        <a href="/policies/privacy-policy">Privacy Policy</a>
+        <a href="/cart">Cart</a>
+      </div>
+    </div>
+    <div class="wrap copy">© Intimauae. All rights reserved.</div>
+  </footer>
+
+  <div class="age-gate show" id="ageGate">
+    <div class="age-card">
+      <h2>WELCOME TO INTIMAUAE</h2>
+      <p>This website contains adult material and is only suitable for those 18 years or older. Click ENTER only if you are at least 18 years of age.</p>
+      <div class="age-actions">
+        <button type="button" class="btn-enter" id="ageEnter">ENTER</button>
+        <button type="button" class="btn-cancel" id="ageCancel">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/products.js"></script>
+  <script>
+    (function () {
+      // Age gate
+      var gate = document.getElementById('ageGate');
+      if (localStorage.getItem('intimauae_age_verified') === 'true') gate.classList.remove('show');
+      document.getElementById('ageEnter').onclick = function () {
+        localStorage.setItem('intimauae_age_verified', 'true');
+        gate.classList.remove('show');
+      };
+      document.getElementById('ageCancel').onclick = function () {
+        window.location.href = 'https://www.google.com';
+      };
+
+      // Mobile nav
+      document.getElementById('menuBtn').onclick = function () {
+        document.getElementById('mainNav').classList.toggle('open');
+      };
+
+      // Hero slider
+      var track = document.getElementById('heroTrack');
+      var slides = track.children.length;
+      var index = 0;
+      var dots = document.getElementById('heroDots');
+      for (var i = 0; i < slides; i++) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+        if (i === 0) b.className = 'on';
+        (function (n) { b.onclick = function () { go(n); }; })(i);
+        dots.appendChild(b);
+      }
+      function go(n) {
+        index = (n + slides) % slides;
+        track.style.transform = 'translateX(' + (-index * 100) + '%)';
+        Array.prototype.forEach.call(dots.children, function (d, i) {
+          d.className = i === index ? 'on' : '';
+        });
+      }
+      document.getElementById('heroPrev').onclick = function () { go(index - 1); };
+      document.getElementById('heroNext').onclick = function () { go(index + 1); };
+      setInterval(function () { go(index + 1); }, 5500);
+
+      // Products
+      function money(n) {
+        if (typeof formatMoney === 'function') return formatMoney(n);
+        return '$' + Number(n).toFixed(2);
+      }
+      function card(p) {
+        var img = (p.images && p.images[0]) || '';
+        if (img && img.charAt(0) !== '/' && img.indexOf('http') !== 0) img = '/' + img;
+        var sale = p.compare_at_price && p.compare_at_price > p.price;
+        return (
+          '<a class="product-card" href="/products/' + p.handle + '">' +
+            '<div class="thumb"><img src="' + img + '" alt="' + String(p.title).replace(/"/g, '&quot;') + '" loading="lazy"></div>' +
+            '<div class="meta">' +
+              '<div class="vendor">' + p.category + '</div>' +
+              '<div class="title">' + p.title + '</div>' +
+              '<div class="price">' +
+                (sale ? '<s>' + money(p.compare_at_price) + '</s>' : '') +
+                money(p.price) +
+              '</div>' +
+            '</div>' +
+          '</a>'
+        );
+      }
+      function fill(id, list) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = list.map(card).join('') || '<p style="color:#9aa6b2">No products found.</p>';
+      }
+
+      if (typeof INTIMAUAE_PRODUCTS === 'undefined') {
+        console.error('Product catalog missing');
+        return;
+      }
+      var all = INTIMAUAE_PRODUCTS;
+      fill('grid-full', all.filter(function (p) { return p.category === 'Full Body Products'; }));
+      fill('grid-partial', all.filter(function (p) { return p.category === 'Partial Body Products'; }));
+      fill('grid-trunk', all.filter(function (p) { return p.category === 'Trunk'; }));
+    })();
+  </script>
+</body>
+</html>
