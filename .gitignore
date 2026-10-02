@@ -15,4 +15,7 @@ _recovered
 _api_err.txt
 _api_out.txt
 .cursor
+migrations-data/
+firebase-service-account.json
+**/firebase-adminsdk*.json
 
