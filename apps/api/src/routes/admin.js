@@ -1037,12 +1037,16 @@ adminRouter.put('/settings/:key', async (req, res, next) => {
   }
 });
 
-/** Payment secrets — never returns key values, only configured flags. */
+/** Payment secrets — never returns key values, only configured flags + fingerprint. */
 adminRouter.get('/payments/config', async (_req, res, next) => {
   try {
     const { loadPaymentConfigFromDb, paymentConfiguredFlags } = await import('../lib/paymentConfig.js');
     await loadPaymentConfigFromDb();
-    res.json({ configured: paymentConfiguredFlags(), source: usePg() ? 'postgres' : 'env' });
+    res.json({
+      configured: paymentConfiguredFlags(),
+      source: usePg() ? 'postgres' : 'env',
+      note: 'RSA public key is registered at Uniwebpay — not stored in our database. Fingerprint is derived from the private key we load.'
+    });
   } catch (e) {
     next(e);
   }
@@ -1074,23 +1078,38 @@ adminRouter.put('/payments/config', async (req, res, next) => {
       const str = String(raw).trim();
       if (!str) continue; // blank = leave existing secret untouched
       applyPaymentSetting(key, str);
+      // Re-read normalized value (private key compacted to single-line base64)
+      const envKey = {
+        payment_uniwebpay_store_id: 'UNIWEBPAY_STORE_ID',
+        payment_uniwebpay_private_key: 'UNIWEBPAY_PRIVATE_KEY_PKCS8',
+        payment_checkout_frames_pk: 'CHECKOUT_FRAMES_PK',
+        payment_uniwebpay_base_url: 'UNIWEBPAY_BASE_URL',
+        payment_uniwebpay_notify_url: 'UNIWEBPAY_NOTIFY_URL',
+        payment_uniwebpay_key_version: 'UNIWEBPAY_KEY_VERSION',
+        usd_to_sgd_rate: 'USD_TO_SGD_RATE'
+      }[key];
+      const toStore = (envKey && process.env[envKey]) || str;
       if (usePg()) {
+        // Store as jsonb string via to_jsonb(text) — avoids double-encoding bugs
         await dbQuery(
           `insert into public.settings (key, value, updated_at)
-           values ($1, $2::jsonb, now())
+           values ($1, to_jsonb($2::text), now())
            on conflict (key) do update set value = excluded.value, updated_at = now()`,
-          [key, JSON.stringify(str)]
+          [key, toStore]
         );
       }
       saved += 1;
     }
 
     await loadPaymentConfigFromDb();
+    const configured = paymentConfiguredFlags();
     res.json({
       ok: true,
       saved,
-      message: saved ? `Updated ${saved} payment field(s).` : 'Nothing saved — leave blank to keep existing keys.',
-      configured: paymentConfiguredFlags()
+      message: saved
+        ? `Updated ${saved} payment field(s).${configured.privateKeyOk ? ` Key fingerprint: ${configured.privateKeyFingerprint}` : configured.privateKeyError ? ` Key invalid: ${configured.privateKeyError}` : ''}`
+        : 'Nothing saved — leave blank to keep existing keys.',
+      configured
     });
   } catch (e) {
     next(e);

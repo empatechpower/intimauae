@@ -2520,8 +2520,41 @@ function SettingsAdmin() {
           <h2>Payment APIs</h2>
           <p className="adm-muted" style={{ marginTop: 0 }}>
             Secrets are never shown here. Fields stay blank — only enter a value when you want to replace it.
-            Leaving a field empty keeps whatever is already saved.
+            Leaving a field empty keeps whatever is already saved. The Uniwebpay RSA <strong>public</strong> key is
+            registered on Uniwebpay’s side only — our database stores the matching <strong>private</strong> key.
           </p>
+          <div className="adm-panel" style={{ marginBottom: 16, padding: 12, background: 'rgba(0,0,0,0.03)' }}>
+            <div className="adm-muted" style={{ marginBottom: 6 }}>
+              Loaded config check (safe — no secrets)
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              <div>
+                Store ID: <code>{payConfigured.storeIdValue || '—'}</code>
+              </div>
+              <div>
+                Key version: <code>{payConfigured.keyVersionValue || '1'}</code>
+              </div>
+              <div>
+                Private key:{' '}
+                {payConfigured.privateKeyOk ? (
+                  <span>
+                    valid RSA{payConfigured.privateKeyBits ? ` ${payConfigured.privateKeyBits}-bit` : ''} · fingerprint{' '}
+                    <code>{payConfigured.privateKeyFingerprint}</code>
+                  </span>
+                ) : payConfigured.privateKey ? (
+                  <span style={{ color: '#b00020' }}>invalid — {payConfigured.privateKeyError || 'cannot parse'}</span>
+                ) : (
+                  <span>not set</span>
+                )}
+              </div>
+              <div>
+                Frames pk: {payConfigured.framesPk ? <code>{payConfigured.framesPkPrefix}…</code> : 'not set'}
+              </div>
+              <div>
+                Notify URL: <code>{payConfigured.notifyUrlValue || '—'}</code>
+              </div>
+            </div>
+          </div>
           <div className="adm-form-grid">
             <SecretField label="Uniwebpay store ID" field="storeId" secret={false} />
             <SecretField label="Key version" field="keyVersion" secret={false} hint={`Current: ${payConfigured.keyVersionValue || '1'}`} />
