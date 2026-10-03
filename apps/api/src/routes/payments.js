@@ -115,11 +115,10 @@ paymentsRouter.post('/create', async (req, res, next) => {
     const clientTransactionId = newClientTxnId();
 
     const body = {
-      acquirerType: 'CHECK_OUTPAY',
+      acquirerType: 'CHECK_OUT_PAY',
       amount: Number(amount),
       cardToken: cardToken || undefined,
       checkoutPaymentType: 'REGULAR',
-      // Keep as digit-string; sortedJson emits a raw 19-digit JSON number
       clientTransactionId: String(clientTransactionId),
       currency: 'SGD',
       failUrl: failUrl || `${appUrl}/checkout?status=fail&order=${orderId}`,

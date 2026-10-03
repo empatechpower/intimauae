@@ -1053,6 +1053,44 @@ adminRouter.get('/payments/config', async (_req, res, next) => {
 });
 
 /**
+ * Signature self-test against Uniwebpay's published sample.
+ * Signs their exact content with the stored private key and compares output.
+ */
+adminRouter.get('/payments/signature-test', async (_req, res, next) => {
+  try {
+    const { loadPaymentConfigFromDb } = await import('../lib/paymentConfig.js');
+    const { signUniwebpayRequest, sortedJson, buildSignContent } = await import('../lib/uniwebpay.js');
+    await loadPaymentConfigFromDb();
+
+    const privateKey = process.env.UNIWEBPAY_PRIVATE_KEY_PKCS8;
+    if (!privateKey) return res.status(503).json({ error: 'Private key not configured' });
+
+    const expected =
+      'IiU9GpWQxb6F7GXG3ZPLeLps1nvHLl8VfSPPUr5hdKTgWVmjKfeFBlE5GOKT7mw96ksYJ5oa9FXF2m8lcrfXtzX%2FrBLIZp9z6TJDennKI0d46Zepw1%2BcGtn8DCCWUZz8UbOTIIZ7rtf6PMPnidbOhbKhdu8WRvPP3t2j2WbUun7AAfgKYz7BPTbQqEAkSBSllO5bF%2BXiwkAAxI4myoQNQSSjLasFSu1hpFbIjSmRAURHPLxKG1ng4YLOv5Ncg0564Gxo%2BlKUArXVcHEeXROUz%2B6BK8bK23yRlDBIoxe0uVsR1PznJU8P5vOLwkBATMP93jr1XPqwq9ynPJYOItxfcw%3D%3D';
+
+    const path = '/api/v1/payment/query';
+    const storeId = '1551614759571685376';
+    const requestTime = '2026-09-26T10:00:00+00:00';
+    const bodyString = sortedJson({
+      clientTransactionId: 'connectivity-check',
+      transactionId: '1000000000000000001'
+    });
+    const contentToSign = buildSignContent({ path, storeId, requestTime, bodyString });
+    const signature = signUniwebpayRequest({ path, storeId, requestTime, bodyString, privateKeyPkcs8: privateKey });
+
+    res.json({
+      match: signature === expected,
+      bodyString,
+      contentToSign,
+      ours: signature,
+      expected
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * Save payment API fields. Empty strings are ignored (keep existing secret).
  * Body: { storeId, privateKey, framesPk, baseUrl, notifyUrl, keyVersion, rate }
  */

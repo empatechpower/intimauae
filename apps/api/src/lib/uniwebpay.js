@@ -13,13 +13,10 @@ function sortKeys(obj) {
 
 /**
  * Sorted JSON body for Uniwebpay (keys A–Z).
- * 19-digit IDs (clientTransactionId / transactionId) are emitted as raw JSON
- * numbers — never via JS Number() — so precision is preserved.
+ * `transactionId` is a 19-digit raw JSON number (never via JS Number(), which
+ * loses precision). `clientTransactionId` stays a JSON string per Uniwebpay.
  */
-export function sortedJson(
-  body,
-  { rawNumberKeys = ['clientTransactionId', 'transactionId'] } = {}
-) {
+export function sortedJson(body, { rawNumberKeys = ['transactionId'] } = {}) {
   const sorted = sortKeys(body);
   const raw = {};
   for (const k of rawNumberKeys) {
