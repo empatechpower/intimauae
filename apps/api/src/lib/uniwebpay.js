@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 
 function sortKeys(obj) {
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortKeys);
   return Object.keys(obj)
     .sort()
     .reduce((acc, k) => {
@@ -11,25 +12,49 @@ function sortKeys(obj) {
 }
 
 /**
- * Sorted JSON body for Uniwebpay.
- * Large IDs (clientTransactionId) must appear as raw JSON numbers (19 digits),
- * not JS Number() — otherwise precision breaks and verify can fail.
+ * Sorted JSON body for Uniwebpay (keys A–Z).
+ * 19-digit IDs (clientTransactionId / transactionId) are emitted as raw JSON
+ * numbers — never via JS Number() — so precision is preserved.
  */
-export function sortedJson(body, { rawNumberKeys = ['clientTransactionId'] } = {}) {
+export function sortedJson(
+  body,
+  { rawNumberKeys = ['clientTransactionId', 'transactionId'] } = {}
+) {
   const sorted = sortKeys(body);
   const raw = {};
   for (const k of rawNumberKeys) {
     if (sorted[k] == null || sorted[k] === '') continue;
-    const digits = String(sorted[k]).replace(/\D/g, '');
-    if (!digits) continue;
-    raw[k] = digits;
+    const asString = String(sorted[k]);
+    // Non-numeric strings (e.g. "connectivity-check") stay quoted JSON strings
+    if (!/^\d+$/.test(asString)) continue;
+    raw[k] = asString;
     sorted[k] = `__RAWNUM_${k}__`;
   }
   let out = JSON.stringify(sorted);
   for (const [k, digits] of Object.entries(raw)) {
-    out = out.replace(`"__RAWNUM_${k}__"`, digits);
+    out = out.replaceAll(`"__RAWNUM_${k}__"`, digits);
   }
   return out;
+}
+
+/** ISO-8601 to the second with +00:00 — no millis, no Z. */
+export function formatRequestTime(d = new Date()) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  const s = String(d.getUTCSeconds()).padStart(2, '0');
+  return `${y}-${m}-${day}T${h}:${min}:${s}+00:00`;
+}
+
+/**
+ * Exact content to sign (two lines, one \\n, no trailing newline):
+ * POST <path>
+ * <StoreId>.<RequestTime>.<body>
+ */
+export function buildSignContent({ method = 'POST', path, storeId, requestTime, bodyString }) {
+  return `${method} ${path}\n${String(storeId).trim()}.${requestTime}.${bodyString}`;
 }
 
 /** Normalize merchant private key to PEM Node can sign with. */
@@ -47,18 +72,20 @@ function toPem(pkcs8Base64) {
     return raw.replace(/\r\n/g, '\n');
   }
 
-  // Uniwebpay: PKCS8 single-line base64 (no PEM headers)
-  const cleaned = raw.replace(/-----BEGIN[^-]+-----/g, '').replace(/-----END[^-]+-----/g, '').replace(/\s+/g, '');
+  const cleaned = raw
+    .replace(/-----BEGIN[^-]+-----/g, '')
+    .replace(/-----END[^-]+-----/g, '')
+    .replace(/\s+/g, '');
   const lines = cleaned.match(/.{1,64}/g) || [];
   return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
 }
 
 /**
- * Content to sign: POST <path>\n<StoreId>.<RequestTime>.<body>
  * SIG = URL-encode(standard Base64(SHA256withRSA(content)))
+ * Not Base64URL; always URL-encode.
  */
 export function signUniwebpayRequest({ method = 'POST', path, storeId, requestTime, bodyString, privateKeyPkcs8 }) {
-  const content = `${method} ${path}\n${storeId}.${requestTime}.${bodyString}`;
+  const content = buildSignContent({ method, path, storeId, requestTime, bodyString });
   const key = toPem(privateKeyPkcs8);
   const signer = crypto.createSign('RSA-SHA256');
   signer.update(content, 'utf8');
@@ -68,7 +95,6 @@ export function signUniwebpayRequest({ method = 'POST', path, storeId, requestTi
 }
 
 export function uniwebHeaders({ storeId, requestTime, signature, keyVersion = 1 }) {
-  // Quick reference: spaces after commas in Signature
   return {
     'Content-Type': 'application/json',
     'Store-Id': String(storeId).trim(),

@@ -5,7 +5,9 @@ import {
   newClientTxnId,
   signUniwebpayRequest,
   sortedJson,
-  uniwebHeaders
+  uniwebHeaders,
+  formatRequestTime,
+  buildSignContent
 } from '../lib/uniwebpay.js';
 import { memGetOrder, memGetPayment, memUpsertPayment, memoryEnabled } from '../lib/memoryStore.js';
 import { dbQuery, hasDatabaseUrl } from '../lib/db.js';
@@ -128,14 +130,21 @@ paymentsRouter.post('/create', async (req, res, next) => {
 
     const bodyString = sortedJson(body);
     const path = '/api/v1/payment/pay';
-    const requestTime = new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00');
+    const requestTime = formatRequestTime();
+    const contentToSign = buildSignContent({ path, storeId, requestTime, bodyString });
 
     if (usePg) {
       await dbQuery(
         `insert into public.payments (order_id, client_transaction_id, status, amount_sgd_cents, card_token, provider_payload)
          values ($1,$2,'pending',$3,$4,$5::jsonb)
          on conflict (client_transaction_id) do update set status='pending', provider_payload=excluded.provider_payload`,
-        [orderId, String(clientTransactionId), amount, cardToken || null, JSON.stringify(body)]
+        [
+          orderId,
+          String(clientTransactionId),
+          amount,
+          cardToken || null,
+          JSON.stringify({ requestBody: bodyString, contentToSign })
+        ]
       );
     } else if (useMemory) {
       memUpsertPayment(clientTransactionId, {
@@ -143,7 +152,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
         status: 'pending',
         amount_sgd_cents: amount,
         card_token: cardToken || null,
-        provider_payload: body
+        provider_payload: { requestBody: bodyString, contentToSign }
       });
     } else {
       const sb = getSupabaseAdmin();
@@ -154,7 +163,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
           status: 'pending',
           amount_sgd_cents: amount,
           card_token: cardToken || null,
-          provider_payload: body
+          provider_payload: { requestBody: bodyString, contentToSign }
         },
         { onConflict: 'client_transaction_id' }
       );
@@ -175,7 +184,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
         source: 'payments',
         event: 'sign_failed',
         message: signErr.message || 'Failed to sign Uniwebpay request (check private key format)',
-        detail: { orderId, clientTransactionId: String(clientTransactionId) },
+        detail: { orderId, clientTransactionId: String(clientTransactionId), requestBody: bodyString, contentToSign },
         orderId
       });
       return res.status(503).json({ error: USER_ERROR });
@@ -210,7 +219,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
         source: 'payments',
         event: 'provider_network_error',
         message: netErr.message || 'Network error calling Uniwebpay',
-        detail: { orderId, clientTransactionId: String(clientTransactionId), base },
+        detail: { orderId, clientTransactionId: String(clientTransactionId), base, requestBody: bodyString, contentToSign },
         orderId
       });
       return res.status(502).json({ error: USER_ERROR });
@@ -224,13 +233,22 @@ paymentsRouter.post('/create', async (req, res, next) => {
         `update public.payments set provider_payload=$2::jsonb, status=$3, updated_at=now() where client_transaction_id=$1`,
         [
           String(clientTransactionId),
-          JSON.stringify({ request: body, response: json }),
+          JSON.stringify({
+            requestBody: bodyString,
+            contentToSign,
+            headers: {
+              'Store-Id': headers['Store-Id'],
+              'Request-Time': headers['Request-Time'],
+              Signature: headers.Signature
+            },
+            response: json
+          }),
           providerOk ? 'pending' : 'failed'
         ]
       );
     } else if (useMemory) {
       memUpsertPayment(clientTransactionId, {
-        provider_payload: { request: body, response: json },
+        provider_payload: { requestBody: bodyString, contentToSign, response: json },
         status: providerOk ? 'pending' : 'failed'
       });
     } else {
@@ -238,7 +256,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
       await sb
         .from('payments')
         .update({
-          provider_payload: { request: body, response: json },
+          provider_payload: { requestBody: bodyString, contentToSign, response: json },
           status: providerOk ? 'pending' : 'failed'
         })
         .eq('client_transaction_id', String(clientTransactionId));
@@ -256,6 +274,13 @@ paymentsRouter.post('/create', async (req, res, next) => {
           httpStatus: resp.status,
           hasRedirect: Boolean(redirectUrl),
           hasCardToken: Boolean(cardToken),
+          requestBody: bodyString,
+          contentToSign,
+          headers: {
+            'Store-Id': headers['Store-Id'],
+            'Request-Time': headers['Request-Time'],
+            Signature: headers.Signature
+          },
           provider: json
         },
         orderId
@@ -309,7 +334,7 @@ paymentsRouter.post('/query', async (req, res, next) => {
     const path = '/api/v1/payment/query';
     const body = { clientTransactionId: String(clientTransactionId) };
     const bodyString = sortedJson(body);
-    const requestTime = new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00');
+    const requestTime = formatRequestTime();
     const storeId = process.env.UNIWEBPAY_STORE_ID;
     const signature = signUniwebpayRequest({
       path,
