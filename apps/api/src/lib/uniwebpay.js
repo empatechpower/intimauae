@@ -10,15 +10,32 @@ function sortKeys(obj) {
     }, {});
 }
 
-export function sortedJson(body) {
-  return JSON.stringify(sortKeys(body));
+/**
+ * Sorted JSON body for Uniwebpay.
+ * Large IDs (clientTransactionId) must appear as raw JSON numbers (19 digits),
+ * not JS Number() — otherwise precision breaks and verify can fail.
+ */
+export function sortedJson(body, { rawNumberKeys = ['clientTransactionId'] } = {}) {
+  const sorted = sortKeys(body);
+  const raw = {};
+  for (const k of rawNumberKeys) {
+    if (sorted[k] == null || sorted[k] === '') continue;
+    const digits = String(sorted[k]).replace(/\D/g, '');
+    if (!digits) continue;
+    raw[k] = digits;
+    sorted[k] = `__RAWNUM_${k}__`;
+  }
+  let out = JSON.stringify(sorted);
+  for (const [k, digits] of Object.entries(raw)) {
+    out = out.replace(`"__RAWNUM_${k}__"`, digits);
+  }
+  return out;
 }
 
 /** Normalize merchant private key to PEM Node can sign with. */
 function toPem(pkcs8Base64) {
   const raw = String(pkcs8Base64 || '')
     .trim()
-    // unwrap accidental JSON-string quotes from admin save
     .replace(/^"+|"+$/g, '')
     .replace(/\\n/g, '\n')
     .trim();
@@ -30,6 +47,7 @@ function toPem(pkcs8Base64) {
     return raw.replace(/\r\n/g, '\n');
   }
 
+  // Uniwebpay: PKCS8 single-line base64 (no PEM headers)
   const cleaned = raw.replace(/-----BEGIN[^-]+-----/g, '').replace(/-----END[^-]+-----/g, '').replace(/\s+/g, '');
   const lines = cleaned.match(/.{1,64}/g) || [];
   return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
@@ -50,13 +68,12 @@ export function signUniwebpayRequest({ method = 'POST', path, storeId, requestTi
 }
 
 export function uniwebHeaders({ storeId, requestTime, signature, keyVersion = 1 }) {
-  // Uniwebpay/Alipay-style header: no spaces after commas (spaces break verify on some gateways).
+  // Quick reference: spaces after commas in Signature
   return {
-    'Content-Type': 'application/json; charset=UTF-8',
+    'Content-Type': 'application/json',
     'Store-Id': String(storeId).trim(),
-    'Client-Id': String(storeId).trim(),
     'Request-Time': requestTime,
-    Signature: `algorithm=RSA256,keyVersion=${keyVersion},signature=${signature}`
+    Signature: `algorithm=RSA256, keyVersion=${keyVersion}, signature=${signature}`
   };
 }
 
@@ -65,12 +82,11 @@ export function aedToSgdCents(sgdAmount, _rateIgnored = 1) {
   return Math.max(1, Math.round(Number(sgdAmount || 0) * 100));
 }
 
+/** 19-digit clientTransactionId as a digit string (sent as raw JSON number). */
 export function newClientTxnId() {
-  // Must stay within Number.MAX_SAFE_INTEGER — Uniwebpay body uses a JSON number.
-  // Date.now() (13 digits) + 3 random digits = 16 digits, always safe.
   const t = Date.now().toString();
-  const r = Math.floor(Math.random() * 1000)
+  const r = Math.floor(Math.random() * 1e6)
     .toString()
-    .padStart(3, '0');
-  return `${t}${r}`.slice(0, 16);
+    .padStart(6, '0');
+  return (t + r).padEnd(19, '0').slice(0, 19);
 }

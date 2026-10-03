@@ -117,7 +117,8 @@ paymentsRouter.post('/create', async (req, res, next) => {
       amount: Number(amount),
       cardToken: cardToken || undefined,
       checkoutPaymentType: 'REGULAR',
-      clientTransactionId: Number(clientTransactionId),
+      // Keep as digit-string; sortedJson emits a raw 19-digit JSON number
+      clientTransactionId: String(clientTransactionId),
       currency: 'SGD',
       failUrl: failUrl || `${appUrl}/checkout?status=fail&order=${orderId}`,
       notificationUrl: process.env.UNIWEBPAY_NOTIFY_URL || `${apiUrl}/api/payments/webhook`,
@@ -306,7 +307,7 @@ paymentsRouter.post('/query', async (req, res, next) => {
     }
 
     const path = '/api/v1/payment/query';
-    const body = { clientTransactionId: Number(clientTransactionId) };
+    const body = { clientTransactionId: String(clientTransactionId) };
     const bodyString = sortedJson(body);
     const requestTime = new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00');
     const storeId = process.env.UNIWEBPAY_STORE_ID;
