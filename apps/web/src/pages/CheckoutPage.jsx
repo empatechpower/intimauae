@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useApp } from '../context/AppContext';
@@ -7,17 +7,41 @@ import { media } from '../lib/media';
 
 const SHIPPING_SGD = 0;
 
+function loadCheckoutFrames() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
+  if (window.Frames) return Promise.resolve(window.Frames);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-cko-frames]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.Frames));
+      existing.addEventListener('error', () => reject(new Error('Failed to load card form')));
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'https://cdn.checkout.com/js/framesv2.min.js';
+    s.async = true;
+    s.dataset.ckoFrames = '1';
+    s.onload = () => resolve(window.Frames);
+    s.onerror = () => reject(new Error('Failed to load card form'));
+    document.head.appendChild(s);
+  });
+}
+
 export default function CheckoutPage() {
   const [params] = useSearchParams();
   const existingOrderId = params.get('order');
   const status = params.get('status');
   const { cart, token, session, clearCart, closeCart } = useApp();
   const nav = useNavigate();
+  const framesReady = useRef(false);
 
   const [paying, setPaying] = useState(false);
   const [msg, setMsg] = useState('');
   const [coupon, setCoupon] = useState('');
   const [discountPct, setDiscountPct] = useState(0);
+  const [framesPk, setFramesPk] = useState('');
+  const [cardValid, setCardValid] = useState(false);
+  const [framesError, setFramesError] = useState('');
   const [form, setForm] = useState({
     email: session?.user?.email || '',
     firstName: '',
@@ -37,6 +61,59 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (session?.user?.email) setForm((f) => ({ ...f, email: f.email || session.user.email }));
   }, [session]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api('/api/payments/config')
+      .then((d) => {
+        if (!cancelled) setFramesPk(d.checkoutFramesPk || '');
+      })
+      .catch(() => {
+        if (!cancelled) setFramesError('Could not load payment configuration.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!framesPk || status === 'success' || status === 'fail') return undefined;
+    let cancelled = false;
+    let validationHandler = null;
+
+    (async () => {
+      try {
+        const Frames = await loadCheckoutFrames();
+        if (cancelled || !Frames) return;
+        if (framesReady.current) {
+          try {
+            Frames.init({ publicKey: framesPk });
+          } catch {
+            /* re-init best effort */
+          }
+        } else {
+          Frames.init({ publicKey: framesPk });
+          framesReady.current = true;
+        }
+        validationHandler = () => setCardValid(Boolean(Frames.isCardValid?.()));
+        Frames.addEventHandler(Frames.Events.CARD_VALIDATION_CHANGED, validationHandler);
+        setFramesError('');
+      } catch (e) {
+        if (!cancelled) setFramesError(e.message || 'Card form failed to load.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try {
+        if (window.Frames && validationHandler) {
+          window.Frames.removeEventHandler?.(window.Frames.Events.CARD_VALIDATION_CHANGED, validationHandler);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [framesPk, status]);
 
   const subtotal = useMemo(
     () => cart.reduce((n, i) => n + Number(i.price_aed || i.price) * i.qty, 0),
@@ -70,9 +147,25 @@ export default function CheckoutPage() {
       setMsg('Your cart is empty.');
       return;
     }
+    if (!window.Frames || !framesPk) {
+      setMsg('Card form is not ready. Please refresh and try again.');
+      return;
+    }
+    if (!window.Frames.isCardValid?.()) {
+      setMsg('Please enter valid card details.');
+      return;
+    }
+
     setPaying(true);
     setMsg('');
     try {
+      const tokenized = await window.Frames.submitCard();
+      const cardToken = tokenized?.token;
+      if (!cardToken) {
+        setMsg('Could not tokenize card. Please check your card details.');
+        return;
+      }
+
       let orderId = existingOrderId;
       if (!orderId) {
         const shipping_address = {
@@ -102,6 +195,7 @@ export default function CheckoutPage() {
         token,
         body: {
           orderId,
+          cardToken,
           successUrl: `${window.location.origin}/checkout?status=success&order=${orderId}`,
           failUrl: `${window.location.origin}/checkout?status=fail&order=${orderId}`
         }
@@ -118,10 +212,15 @@ export default function CheckoutPage() {
         return;
       }
       setMsg('Something went wrong. Please try again or contact support.');
-    } catch {
-      setMsg('Something went wrong. Please try again or contact support.');
+    } catch (err) {
+      setMsg(err?.message || 'Something went wrong. Please try again or contact support.');
     } finally {
       setPaying(false);
+      try {
+        window.Frames?.enableSubmitForm?.();
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -167,7 +266,7 @@ export default function CheckoutPage() {
           <h1>Checkout</h1>
           <p>Your cart is empty.</p>
           <Link className="btn-pink" to="/catalogs">
-            Continue shopping
+            Browse catalog
           </Link>
         </div>
       </main>
@@ -181,15 +280,10 @@ export default function CheckoutPage() {
           <section>
             <div className="checkout-section-head">
               <h2>Contact</h2>
-              {!session && (
-                <Link to="/login" style={{ fontSize: 13 }}>
-                  Sign in
-                </Link>
-              )}
             </div>
             <input
-              type="email"
               required
+              type="email"
               placeholder="Email"
               value={form.email}
               onChange={(e) => setField('email', e.target.value)}
@@ -197,26 +291,50 @@ export default function CheckoutPage() {
           </section>
 
           <section>
-            <h2>Delivery</h2>
-            <select value={form.country} onChange={(e) => setField('country', e.target.value)}>
-              <option>United Arab Emirates</option>
-              <option>Saudi Arabia</option>
-              <option>United States</option>
-              <option>United Kingdom</option>
-              <option>Singapore</option>
-              <option>Other</option>
-            </select>
+            <h2>Shipping address</h2>
             <div className="checkout-row2">
-              <input required placeholder="First name" value={form.firstName} onChange={(e) => setField('firstName', e.target.value)} />
-              <input required placeholder="Last name" value={form.lastName} onChange={(e) => setField('lastName', e.target.value)} />
+              <input
+                required
+                placeholder="First name"
+                value={form.firstName}
+                onChange={(e) => setField('firstName', e.target.value)}
+              />
+              <input
+                required
+                placeholder="Last name"
+                value={form.lastName}
+                onChange={(e) => setField('lastName', e.target.value)}
+              />
             </div>
-            <input required placeholder="Address" value={form.address} onChange={(e) => setField('address', e.target.value)} />
-            <input placeholder="Apartment, suite, etc. (optional)" value={form.apartment} onChange={(e) => setField('apartment', e.target.value)} />
+            <input
+              required
+              placeholder="Address"
+              value={form.address}
+              onChange={(e) => setField('address', e.target.value)}
+            />
+            <input
+              placeholder="Apartment, suite, etc. (optional)"
+              value={form.apartment}
+              onChange={(e) => setField('apartment', e.target.value)}
+            />
             <div className="checkout-row2">
               <input required placeholder="City" value={form.city} onChange={(e) => setField('city', e.target.value)} />
-              <input placeholder="Postal code" value={form.postal} onChange={(e) => setField('postal', e.target.value)} />
+              <input
+                required
+                placeholder="Postal code"
+                value={form.postal}
+                onChange={(e) => setField('postal', e.target.value)}
+              />
             </div>
-            <input required placeholder="Phone" value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+            <div className="checkout-row2">
+              <input
+                required
+                placeholder="Country"
+                value={form.country}
+                onChange={(e) => setField('country', e.target.value)}
+              />
+              <input required placeholder="Phone" value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+            </div>
           </section>
 
           <section>
@@ -230,17 +348,17 @@ export default function CheckoutPage() {
           <section>
             <h2>Payment</h2>
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-              You’ll enter card details on the secure payment page. We never store card numbers.
+              Enter your card details below. Card numbers are tokenized by Checkout.com — we never store them.
             </p>
             <div className="checkout-pay-card">
               <div className="checkout-pay-title">Secure card payment</div>
-              <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                Credit / debit card details are entered on the secure payment page after you click Pay now.
-              </p>
+              {!framesPk && !framesError ? <p className="muted">Loading card form…</p> : null}
+              {framesError ? <p className="checkout-warn">{framesError}</p> : null}
+              <div className="card-frame" />
             </div>
           </section>
 
-          <button type="submit" className="checkout-pay-btn" disabled={paying}>
+          <button type="submit" className="checkout-pay-btn" disabled={paying || !framesPk || (!cardValid && !!framesPk)}>
             {paying ? 'Processing…' : 'Pay now'}
           </button>
           {msg && <p className="checkout-msg">{msg}</p>}

@@ -1961,6 +1961,8 @@ function SettingsAdmin() {
     rate: 1.35
   });
   const [paySaving, setPaySaving] = useState(false);
+  const [sigTest, setSigTest] = useState(null);
+  const [sigTesting, setSigTesting] = useState(false);
 
   const tabs = [
     ['seo', 'SEO'],
@@ -2058,6 +2060,21 @@ function SettingsAdmin() {
       heroSlides.filter((s) => s.image || s.title)
     );
     setMsg('Banners saved. Refresh the storefront to see changes.');
+  }
+
+  async function runSignatureTest() {
+    setSigTesting(true);
+    setSigTest(null);
+    setMsg('');
+    try {
+      const d = await api('/api/admin/payments/signature-test', { token });
+      setSigTest(d);
+      setMsg(d.match ? 'Signature test MATCH — our signing matches Uniwebpay sample.' : 'Signature test MISMATCH — compare ours vs expected below.');
+    } catch (err) {
+      setMsg(err.message || 'Signature test failed.');
+    } finally {
+      setSigTesting(false);
+    }
   }
 
   async function savePayments(e) {
@@ -2580,6 +2597,9 @@ function SettingsAdmin() {
             <button className="adm-btn adm-btn--primary" type="submit" disabled={paySaving}>
               {paySaving ? 'Saving…' : 'Save payment settings'}
             </button>
+            <button type="button" className="adm-btn adm-btn--ghost" onClick={runSignatureTest} disabled={sigTesting}>
+              {sigTesting ? 'Testing…' : 'Run signature test'}
+            </button>
             <button
               type="button"
               className="adm-btn adm-btn--ghost"
@@ -2591,6 +2611,28 @@ function SettingsAdmin() {
               Clear form
             </button>
           </div>
+          {sigTest && (
+            <div className="adm-panel" style={{ marginTop: 12, padding: 12, background: 'rgba(0,0,0,0.03)', fontSize: 13 }}>
+              <div>
+                Result:{' '}
+                <strong style={{ color: sigTest.match ? '#15803d' : '#b91c1c' }}>
+                  {sigTest.match ? 'MATCH' : 'MISMATCH'}
+                </strong>
+              </div>
+              <div style={{ marginTop: 8, wordBreak: 'break-all' }}>
+                <div className="adm-muted">contentToSign</div>
+                <code>{sigTest.contentToSign}</code>
+              </div>
+              <div style={{ marginTop: 8, wordBreak: 'break-all' }}>
+                <div className="adm-muted">ours</div>
+                <code>{sigTest.ours}</code>
+              </div>
+              <div style={{ marginTop: 8, wordBreak: 'break-all' }}>
+                <div className="adm-muted">expected</div>
+                <code>{sigTest.expected}</code>
+              </div>
+            </div>
+          )}
         </form>
       )}
 

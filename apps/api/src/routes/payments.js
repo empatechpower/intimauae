@@ -43,6 +43,7 @@ paymentsRouter.get('/config', async (_req, res) => {
   res.json({
     currency: 'SGD',
     displayCurrency: 'SGD',
+    checkoutFramesPk: process.env.CHECKOUT_FRAMES_PK || null,
     ready: Boolean(process.env.UNIWEBPAY_PRIVATE_KEY_PKCS8 && process.env.CHECKOUT_FRAMES_PK && process.env.UNIWEBPAY_STORE_ID)
   });
 });
@@ -60,6 +61,17 @@ paymentsRouter.post('/create', async (req, res, next) => {
     const { orderId, cardToken, successUrl, failUrl } = req.body || {};
     if (!orderId) {
       return res.status(400).json({ error: USER_ERROR });
+    }
+    if (!cardToken) {
+      await writeAudit({
+        level: 'error',
+        source: 'payments',
+        event: 'missing_card_token',
+        message: 'CHECK_OUT_PAY requires a Checkout Frames cardToken from the browser',
+        detail: { orderId },
+        orderId
+      });
+      return res.status(400).json({ error: 'Card details are required. Please enter your card and try again.' });
     }
 
     const apiUrl = process.env.API_URL || 'http://127.0.0.1:4123';

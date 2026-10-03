@@ -1070,6 +1070,8 @@ html.translated-rtl main{
 .checkout-ship{display:flex;justify-content:space-between;align-items:center;border:1px solid #d1d5db;border-radius:8px;padding:14px 16px;background:#fafafa}
 .checkout-pay-card{border:1px solid #d1d5db;border-radius:8px;padding:14px;background:#f8fafc}
 .checkout-pay-title{font-weight:700;margin-bottom:10px}
+.card-frame{margin-top:8px;min-height:52px}
+.card-frame iframe{width:100%}
 .checkout-pay-btn{width:100%;background:#111;color:#fff;border:0;padding:16px;font-size:16px;font-weight:700;border-radius:8px;cursor:pointer}
 .checkout-pay-btn:disabled{opacity:.6;cursor:wait}
 .checkout-warn{font-size:13px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;padding:10px 12px;border-radius:6px}
