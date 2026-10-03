@@ -50,11 +50,13 @@ export function signUniwebpayRequest({ method = 'POST', path, storeId, requestTi
 }
 
 export function uniwebHeaders({ storeId, requestTime, signature, keyVersion = 1 }) {
+  // Uniwebpay/Alipay-style header: no spaces after commas (spaces break verify on some gateways).
   return {
-    'Content-Type': 'application/json',
-    'Store-Id': String(storeId),
+    'Content-Type': 'application/json; charset=UTF-8',
+    'Store-Id': String(storeId).trim(),
+    'Client-Id': String(storeId).trim(),
     'Request-Time': requestTime,
-    Signature: `algorithm=RSA256, keyVersion=${keyVersion}, signature=${signature}`
+    Signature: `algorithm=RSA256,keyVersion=${keyVersion},signature=${signature}`
   };
 }
 
