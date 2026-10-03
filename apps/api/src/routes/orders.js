@@ -9,11 +9,15 @@ import {
   memListOrders,
   memoryEnabled
 } from '../lib/memoryStore.js';
+import { writeAudit } from '../lib/audit.js';
 
 export const ordersRouter = Router();
 
 function usePg() {
-  return hasDatabaseUrl() && !hasServiceRole();
+  // Prefer direct Postgres whenever DATABASE_URL is set (same as admin/payments).
+  // The old `&& !hasServiceRole()` check forced the Supabase client path in
+  // production and broke guest/checkout order inserts.
+  return hasDatabaseUrl();
 }
 
 ordersRouter.get('/mine', async (req, res, next) => {
@@ -74,7 +78,7 @@ ordersRouter.post('/', async (req, res, next) => {
     if (usePg()) {
       const { rows } = await dbQuery(
         `insert into public.orders (user_id, email, status, currency_display, subtotal_aed, total_aed, charge_sgd_cents, shipping_address, notes)
-         values ($1,$2,'unpaid','SGD',$3,$3,$4,$5,$6) returning *`,
+         values ($1,$2,'unpaid','SGD',$3,$3,$4,$5::jsonb,$6) returning *`,
         [
           user?.id || null,
           req.body.email || user?.email || null,
@@ -173,6 +177,13 @@ ordersRouter.post('/', async (req, res, next) => {
 
     res.status(201).json({ order, payment, clientTransactionId });
   } catch (e) {
+    await writeAudit({
+      level: 'error',
+      source: 'orders',
+      event: 'order_create_failed',
+      message: e.message || 'Order create failed',
+      detail: { code: e.code || null }
+    });
     next(e);
   }
 });

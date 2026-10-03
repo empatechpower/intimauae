@@ -18,4 +18,6 @@ _api_out.txt
 migrations-data/
 firebase-service-account.json
 **/firebase-adminsdk*.json
+apps/api/.env.client
+.env.client
 
