@@ -14,9 +14,23 @@ export function sortedJson(body) {
   return JSON.stringify(sortKeys(body));
 }
 
-/** PKCS8 single-line base64 private key -> PEM */
+/** Normalize merchant private key to PEM Node can sign with. */
 function toPem(pkcs8Base64) {
-  const cleaned = String(pkcs8Base64 || '').replace(/-----BEGIN[^-]+-----/g, '').replace(/-----END[^-]+-----/g, '').replace(/\s+/g, '');
+  const raw = String(pkcs8Base64 || '')
+    .trim()
+    // unwrap accidental JSON-string quotes from admin save
+    .replace(/^"+|"+$/g, '')
+    .replace(/\\n/g, '\n')
+    .trim();
+
+  if (/BEGIN RSA PRIVATE KEY/.test(raw)) {
+    return raw.replace(/\r\n/g, '\n');
+  }
+  if (/BEGIN PRIVATE KEY/.test(raw)) {
+    return raw.replace(/\r\n/g, '\n');
+  }
+
+  const cleaned = raw.replace(/-----BEGIN[^-]+-----/g, '').replace(/-----END[^-]+-----/g, '').replace(/\s+/g, '');
   const lines = cleaned.match(/.{1,64}/g) || [];
   return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
 }
@@ -29,7 +43,7 @@ export function signUniwebpayRequest({ method = 'POST', path, storeId, requestTi
   const content = `${method} ${path}\n${storeId}.${requestTime}.${bodyString}`;
   const key = toPem(privateKeyPkcs8);
   const signer = crypto.createSign('RSA-SHA256');
-  signer.update(content);
+  signer.update(content, 'utf8');
   signer.end();
   const sigB64 = signer.sign(key).toString('base64');
   return encodeURIComponent(sigB64);
@@ -50,10 +64,11 @@ export function aedToSgdCents(sgdAmount, _rateIgnored = 1) {
 }
 
 export function newClientTxnId() {
-  // 19-digit-ish numeric string for Uniwebpay
+  // Must stay within Number.MAX_SAFE_INTEGER — Uniwebpay body uses a JSON number.
+  // Date.now() (13 digits) + 3 random digits = 16 digits, always safe.
   const t = Date.now().toString();
-  const r = Math.floor(Math.random() * 1e6)
+  const r = Math.floor(Math.random() * 1000)
     .toString()
-    .padStart(6, '0');
-  return (t + r).slice(0, 19);
+    .padStart(3, '0');
+  return `${t}${r}`.slice(0, 16);
 }

@@ -12,7 +12,19 @@ const KEY_MAP = {
 
 function asPlainString(value) {
   if (value == null) return '';
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') {
+    let s = value.trim();
+    // jsonb sometimes round-trips with extra quotes / escaped newlines
+    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+      try {
+        const parsed = JSON.parse(s.startsWith("'") ? `"${s.slice(1, -1)}"` : s);
+        if (typeof parsed === 'string') s = parsed;
+      } catch {
+        s = s.slice(1, -1);
+      }
+    }
+    return s.replace(/\\n/g, '\n').trim();
+  }
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return '';
 }
