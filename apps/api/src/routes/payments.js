@@ -238,6 +238,10 @@ paymentsRouter.post('/create', async (req, res, next) => {
 
     const redirectUrl = extractRedirect(json);
     const providerOk = resp.ok && (json?.success !== false);
+    // Card-token pays often succeed with no redirect and a late/missing webhook.
+    // Treat accepted CHECK_OUT_PAY + cardToken as paid immediately; webhook can still confirm later.
+    const paidNow = Boolean(providerOk && cardToken && !redirectUrl);
+    const paymentStatus = !providerOk ? 'failed' : paidNow ? 'paid' : 'pending';
 
     if (usePg) {
       await dbQuery(
@@ -254,23 +258,33 @@ paymentsRouter.post('/create', async (req, res, next) => {
             },
             response: json
           }),
-          providerOk ? 'pending' : 'failed'
+          paymentStatus
         ]
       );
+      if (paidNow) {
+        await dbQuery(`update public.orders set status='pending', updated_at=now() where id = $1`, [orderId]);
+      }
     } else if (useMemory) {
       memUpsertPayment(clientTransactionId, {
         provider_payload: { requestBody: bodyString, contentToSign, response: json },
-        status: providerOk ? 'pending' : 'failed'
+        status: paymentStatus
       });
+      if (paidNow) {
+        const { memUpdateOrder } = await import('../lib/memoryStore.js');
+        memUpdateOrder(orderId, { status: 'pending' });
+      }
     } else {
       const sb = getSupabaseAdmin();
       await sb
         .from('payments')
         .update({
           provider_payload: { requestBody: bodyString, contentToSign, response: json },
-          status: providerOk ? 'pending' : 'failed'
+          status: paymentStatus
         })
         .eq('client_transaction_id', String(clientTransactionId));
+      if (paidNow) {
+        await sb.from('orders').update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', orderId);
+      }
     }
 
     if (!providerOk || (!redirectUrl && !cardToken)) {
@@ -302,16 +316,27 @@ paymentsRouter.post('/create', async (req, res, next) => {
     await writeAudit({
       level: 'info',
       source: 'payments',
-      event: 'payment_started',
-      message: redirectUrl ? 'Customer redirected to Uniwebpay checkout' : 'Payment request accepted',
-      detail: { orderId, clientTransactionId: String(clientTransactionId), hasRedirect: Boolean(redirectUrl) },
+      event: paidNow ? 'payment_paid' : 'payment_started',
+      message: paidNow
+        ? 'Card payment accepted — order marked pending (awaiting fulfillment)'
+        : redirectUrl
+          ? 'Customer redirected to Uniwebpay checkout'
+          : 'Payment request accepted',
+      detail: {
+        orderId,
+        clientTransactionId: String(clientTransactionId),
+        hasRedirect: Boolean(redirectUrl),
+        paidNow,
+        notificationUrl: body.notificationUrl || null
+      },
       orderId
     });
 
     res.json({
       ok: true,
       clientTransactionId: String(clientTransactionId),
-      redirectUrl: redirectUrl || undefined
+      redirectUrl: redirectUrl || undefined,
+      paid: paidNow
     });
   } catch (e) {
     await writeAudit({
@@ -426,15 +451,33 @@ paymentsRouter.post('/webhook', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing transaction id' });
     }
 
-    const statusRaw = String(payload.status || payload.paymentStatus || '').toLowerCase();
-    const paid = statusRaw.includes('success') || statusRaw.includes('paid') || statusRaw === '1';
+    const statusRaw = String(
+      payload.status ||
+        payload.paymentStatus ||
+        payload.resultStatus ||
+        payload.result?.resultStatus ||
+        payload.data?.status ||
+        ''
+    ).toLowerCase();
+    const paid =
+      statusRaw.includes('success') ||
+      statusRaw.includes('paid') ||
+      statusRaw.includes('succeed') ||
+      statusRaw === 's' ||
+      statusRaw === '1' ||
+      payload.success === true;
 
     await writeAudit({
       level: 'info',
       source: 'payments',
       event: 'webhook_received',
       message: paid ? 'Webhook marked payment paid' : 'Webhook received',
-      detail: { clientTransactionId, statusRaw }
+      detail: {
+        clientTransactionId,
+        statusRaw,
+        payloadKeys: Object.keys(payload || {}),
+        payload
+      }
     });
 
     if (hasDatabaseUrl()) {
