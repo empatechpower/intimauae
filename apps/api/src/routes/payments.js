@@ -34,6 +34,54 @@ function extractRedirect(provider) {
   );
 }
 
+/** True only when Uniwebpay clearly reports a successful charge — not just HTTP 200. */
+function providerIndicatesPaid(provider) {
+  if (!provider || typeof provider !== 'object') return false;
+  if (provider.success === false || provider.code === 'fail') return false;
+  const raw = String(
+    provider.status ||
+      provider.paymentStatus ||
+      provider.resultStatus ||
+      provider.result?.resultStatus ||
+      provider.result?.status ||
+      provider.data?.status ||
+      provider.data?.paymentStatus ||
+      ''
+  ).toLowerCase();
+  if (!raw) return false;
+  return (
+    raw.includes('success') ||
+    raw.includes('succeed') ||
+    raw.includes('paid') ||
+    raw.includes('captured') ||
+    raw === 's' ||
+    raw === '1'
+  );
+}
+
+async function queryUniwebpayStatus(clientTransactionId, { storeId, privateKey }) {
+  const path = '/api/v1/payment/query';
+  const bodyString = sortedJson({ clientTransactionId: String(clientTransactionId) });
+  const requestTime = formatRequestTime();
+  const signature = signUniwebpayRequest({
+    path,
+    storeId,
+    requestTime,
+    bodyString,
+    privateKeyPkcs8: privateKey
+  });
+  const headers = uniwebHeaders({
+    storeId,
+    requestTime,
+    signature,
+    keyVersion: Number(process.env.UNIWEBPAY_KEY_VERSION || 1)
+  });
+  const base = process.env.UNIWEBPAY_BASE_URL || 'https://app.uniwebpay.com';
+  const resp = await fetch(`${base}${path}`, { method: 'POST', headers, body: bodyString });
+  const json = await resp.json().catch(() => ({}));
+  return { ok: resp.ok, json };
+}
+
 paymentsRouter.get('/config', async (_req, res) => {
   try {
     await loadPaymentConfigFromDb();
@@ -237,10 +285,26 @@ paymentsRouter.post('/create', async (req, res, next) => {
     }
 
     const redirectUrl = extractRedirect(json);
-    const providerOk = resp.ok && (json?.success !== false);
-    // Card-token pays often succeed with no redirect and a late/missing webhook.
-    // Treat accepted CHECK_OUT_PAY + cardToken as paid immediately; webhook can still confirm later.
-    const paidNow = Boolean(providerOk && cardToken && !redirectUrl);
+    const providerOk = resp.ok && (json?.success !== false) && String(json?.code || '').toLowerCase() !== 'fail';
+    // Do NOT treat "request accepted" as money taken. Confirm via response fields and/or query.
+    let paidNow = providerOk && providerIndicatesPaid(json);
+    let queryJson = null;
+    if (providerOk && cardToken && !paidNow && !redirectUrl) {
+      try {
+        const q = await queryUniwebpayStatus(clientTransactionId, { storeId, privateKey });
+        queryJson = q.json;
+        if (q.ok && providerIndicatesPaid(q.json)) paidNow = true;
+      } catch (qe) {
+        await writeAudit({
+          level: 'warn',
+          source: 'payments',
+          event: 'query_after_pay_failed',
+          message: qe.message || 'Could not query payment status after pay',
+          detail: { orderId, clientTransactionId: String(clientTransactionId) },
+          orderId
+        });
+      }
+    }
     const paymentStatus = !providerOk ? 'failed' : paidNow ? 'paid' : 'pending';
 
     if (usePg) {
@@ -318,16 +382,18 @@ paymentsRouter.post('/create', async (req, res, next) => {
       source: 'payments',
       event: paidNow ? 'payment_paid' : 'payment_started',
       message: paidNow
-        ? 'Card payment accepted — order marked pending (awaiting fulfillment)'
+        ? 'Charge confirmed — order marked pending (awaiting fulfillment)'
         : redirectUrl
           ? 'Customer redirected to Uniwebpay checkout'
-          : 'Payment request accepted',
+          : 'Pay request accepted — waiting for charge confirmation (query/webhook)',
       detail: {
         orderId,
         clientTransactionId: String(clientTransactionId),
         hasRedirect: Boolean(redirectUrl),
         paidNow,
-        notificationUrl: body.notificationUrl || null
+        notificationUrl: body.notificationUrl || null,
+        provider: json,
+        query: queryJson
       },
       orderId
     });

@@ -206,9 +206,16 @@ export default function CheckoutPage() {
         window.location.href = res.redirectUrl;
         return;
       }
-      if (res.ok) {
+      // Only show success when the charge is confirmed (not merely "request accepted")
+      if (res.ok && res.paid) {
         clearCart();
         nav(`/checkout?status=success&order=${orderId}`, { replace: true });
+        return;
+      }
+      if (res.ok) {
+        setMsg(
+          'Payment is still processing. If money left your card, keep your order reference and contact support. Do not pay again yet.'
+        );
         return;
       }
       setMsg('Something went wrong. Please try again or contact support.');
