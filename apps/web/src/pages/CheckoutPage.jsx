@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useApp } from '../context/AppContext';
 import { formatMoney } from '../lib/i18n';
@@ -31,9 +31,11 @@ export default function CheckoutPage() {
   const [params] = useSearchParams();
   const existingOrderId = params.get('order');
   const status = params.get('status');
-  const { cart, token, session, clearCart, closeCart } = useApp();
+  const { cart, token, session, authReady, profileReady, clearCart, closeCart } = useApp();
   const nav = useNavigate();
+  const location = useLocation();
   const framesReady = useRef(false);
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
 
   const [paying, setPaying] = useState(false);
   const [msg, setMsg] = useState('');
@@ -54,6 +56,10 @@ export default function CheckoutPage() {
     phone: ''
   });
 
+  // Allow success/fail return pages without forcing re-login mid-redirect
+  const isReturnStatus = status === 'success' || status === 'fail';
+  const authBlocked = !isReturnStatus && (!authReady || !session || (session && !profileReady));
+
   useEffect(() => {
     closeCart?.();
   }, [closeCart]);
@@ -63,6 +69,7 @@ export default function CheckoutPage() {
   }, [session]);
 
   useEffect(() => {
+    if (authBlocked) return undefined;
     let cancelled = false;
     api('/api/payments/config')
       .then((d) => {
@@ -74,9 +81,10 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authBlocked]);
 
   useEffect(() => {
+    if (authBlocked) return undefined;
     if (!framesPk || status === 'success' || status === 'fail') return undefined;
     let cancelled = false;
     let validationHandler = null;
@@ -113,7 +121,7 @@ export default function CheckoutPage() {
         /* ignore */
       }
     };
-  }, [framesPk, status]);
+  }, [authBlocked, framesPk, status]);
 
   const subtotal = useMemo(
     () => cart.reduce((n, i) => n + Number(i.price_aed || i.price) * i.qty, 0),
@@ -143,6 +151,10 @@ export default function CheckoutPage() {
 
   async function payNow(e) {
     e.preventDefault();
+    if (!session) {
+      nav('/login', { state: { from: returnTo || '/checkout' } });
+      return;
+    }
     if (!cart.length && !existingOrderId) {
       setMsg('Your cart is empty.');
       return;
@@ -229,6 +241,30 @@ export default function CheckoutPage() {
         /* ignore */
       }
     }
+  }
+
+  if (!authReady && !isReturnStatus) {
+    return (
+      <main className="checkout-page">
+        <div className="checkout-success">
+          <p className="muted">Restoring session…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session && !isReturnStatus) {
+    return <Navigate to="/login" replace state={{ from: returnTo || '/checkout' }} />;
+  }
+
+  if (session && !profileReady && !isReturnStatus) {
+    return (
+      <main className="checkout-page">
+        <div className="checkout-success">
+          <p className="muted">Loading your account…</p>
+        </div>
+      </main>
+    );
   }
 
   if (status === 'success') {

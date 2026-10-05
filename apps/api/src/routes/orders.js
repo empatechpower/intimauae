@@ -62,12 +62,7 @@ ordersRouter.get('/mine', async (req, res, next) => {
 
 ordersRouter.post('/', async (req, res, next) => {
   try {
-    let user = null;
-    try {
-      user = await requireUser(req);
-    } catch {
-      /* guest */
-    }
+    const user = await requireUser(req);
     const items = Array.isArray(req.body.items) ? req.body.items : [];
     if (!items.length) return res.status(400).json({ error: 'Cart empty' });
 
@@ -80,8 +75,8 @@ ordersRouter.post('/', async (req, res, next) => {
         `insert into public.orders (user_id, email, status, currency_display, subtotal_aed, total_aed, charge_sgd_cents, shipping_address, notes)
          values ($1,$2,'unpaid','SGD',$3,$3,$4,$5::jsonb,$6) returning *`,
         [
-          user?.id || null,
-          req.body.email || user?.email || null,
+          user.id,
+          req.body.email || user.email || null,
           subtotal,
           charge_sgd_cents,
           req.body.shipping_address ? JSON.stringify(req.body.shipping_address) : null,
@@ -116,8 +111,8 @@ ordersRouter.post('/', async (req, res, next) => {
 
     if (memoryEnabled() || !hasServiceRole()) {
       const order = memCreateOrder({
-        userId: user?.id,
-        email: req.body.email || user?.email || null,
+        userId: user.id,
+        email: req.body.email || user.email || null,
         items,
         shipping_address: req.body.shipping_address,
         notes: req.body.notes,
@@ -137,8 +132,8 @@ ordersRouter.post('/', async (req, res, next) => {
     const { data: order, error } = await sb
       .from('orders')
       .insert({
-        user_id: user?.id || null,
-        email: req.body.email || user?.email || null,
+        user_id: user.id,
+        email: req.body.email || user.email || null,
         status: 'unpaid',
         currency_display: 'SGD',
         subtotal_aed: subtotal,

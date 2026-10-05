@@ -4,9 +4,17 @@ import { formatMoney, t } from '../lib/i18n';
 import { media } from '../lib/media';
 
 export default function CartPage() {
-  const { cart, currency, lang, setQty, removeFromCart } = useApp();
+  const { cart, currency, lang, session, setQty, removeFromCart } = useApp();
   const nav = useNavigate();
   const subtotal = cart.reduce((n, i) => n + Number(i.price_aed || i.price) * i.qty, 0);
+
+  function goCheckout() {
+    if (!session) {
+      nav('/login', { state: { from: '/checkout' } });
+      return;
+    }
+    nav('/checkout');
+  }
 
   if (!cart.length) {
     return (
@@ -61,7 +69,7 @@ export default function CartPage() {
           <div style={{ color: '#9aa6b2' }}>{lang === 'ar' ? 'المجموع' : 'Subtotal'}</div>
           <div style={{ fontSize: 24, fontWeight: 700, margin: '6px 0 12px' }}>{formatMoney(subtotal, currency)}</div>
           <p style={{ color: '#9aa6b2', fontSize: 13 }}>{t(lang, 'paymentsBy')}</p>
-          <button type="button" className="btn-pink" onClick={() => nav('/checkout')}>
+          <button type="button" className="btn-pink" onClick={goCheckout}>
             {t(lang, 'checkout')}
           </button>
         </div>

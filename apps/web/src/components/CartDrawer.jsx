@@ -4,13 +4,17 @@ import { formatMoney, t } from '../lib/i18n';
 import { media } from '../lib/media';
 
 export default function CartDrawer() {
-  const { cart, cartOpen, closeCart, currency, lang, setQty, removeFromCart } = useApp();
+  const { cart, cartOpen, closeCart, currency, lang, session, setQty, removeFromCart } = useApp();
   const nav = useNavigate();
   const subtotal = cart.reduce((n, i) => n + Number(i.price_aed || i.price) * i.qty, 0);
   const empty = !cart.length;
 
   function goCheckout() {
     closeCart();
+    if (!session) {
+      nav('/login', { state: { from: '/checkout' } });
+      return;
+    }
     nav('/checkout');
   }
 

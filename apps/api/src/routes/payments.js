@@ -98,11 +98,7 @@ paymentsRouter.get('/config', async (_req, res) => {
 
 paymentsRouter.post('/create', async (req, res, next) => {
   try {
-    try {
-      await requireUser(req);
-    } catch {
-      /* guest */
-    }
+    await requireUser(req);
 
     await loadPaymentConfigFromDb();
 
