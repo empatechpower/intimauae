@@ -1963,8 +1963,6 @@ function SettingsAdmin() {
   const [paySaving, setPaySaving] = useState(false);
   const [sigTest, setSigTest] = useState(null);
   const [sigTesting, setSigTesting] = useState(false);
-  const [convertingPrices, setConvertingPrices] = useState(false);
-  const [convertResult, setConvertResult] = useState(null);
 
   const tabs = [
     ['seo', 'SEO'],
@@ -2092,34 +2090,6 @@ function SettingsAdmin() {
       setMsg(err.message || 'Failed to save payment settings.');
     } finally {
       setPaySaving(false);
-    }
-  }
-
-  async function convertCatalogToUsd() {
-    const rate = Number(payForm.rate || payConfigured.rate || 1.35);
-    if (
-      !window.confirm(
-        `Convert all product prices from SGD → USD by dividing by ${rate}?\n\nExample: 67.50 SGD → $50.00 USD.\nThis should only run once.`
-      )
-    ) {
-      return;
-    }
-    setConvertingPrices(true);
-    setConvertResult(null);
-    setMsg('');
-    try {
-      const res = await api('/api/admin/products/convert-sgd-to-usd', {
-        method: 'POST',
-        token,
-        body: { rate }
-      });
-      setConvertResult(res);
-      setMsg(res.message || 'Catalog converted to USD.');
-      await loadPaymentFlags();
-    } catch (err) {
-      setMsg(err.message || 'Price conversion failed.');
-    } finally {
-      setConvertingPrices(false);
     }
   }
 
