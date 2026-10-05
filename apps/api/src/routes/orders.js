@@ -67,13 +67,13 @@ ordersRouter.post('/', async (req, res, next) => {
     if (!items.length) return res.status(400).json({ error: 'Cart empty' });
 
     const subtotal = items.reduce((n, it) => n + Number(it.price_aed || it.price || 0) * Number(it.qty || 1), 0);
-    const charge_sgd_cents = aedToSgdCents(subtotal, 1);
+    const charge_sgd_cents = aedToSgdCents(subtotal);
     const clientTransactionId = newClientTxnId();
 
     if (usePg()) {
       const { rows } = await dbQuery(
         `insert into public.orders (user_id, email, status, currency_display, subtotal_aed, total_aed, charge_sgd_cents, shipping_address, notes)
-         values ($1,$2,'unpaid','SGD',$3,$3,$4,$5::jsonb,$6) returning *`,
+         values ($1,$2,'unpaid','USD',$3,$3,$4,$5::jsonb,$6) returning *`,
         [
           user.id,
           req.body.email || user.email || null,
@@ -135,7 +135,7 @@ ordersRouter.post('/', async (req, res, next) => {
         user_id: user.id,
         email: req.body.email || user.email || null,
         status: 'unpaid',
-        currency_display: 'SGD',
+        currency_display: 'USD',
         subtotal_aed: subtotal,
         total_aed: subtotal,
         charge_sgd_cents,

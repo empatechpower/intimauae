@@ -917,7 +917,8 @@ adminRouter.get('/settings', async (_req, res, next) => {
     const defaults = [
       { key: 'usd_to_sgd_rate', value: Number(process.env.USD_TO_SGD_RATE || process.env.AED_TO_SGD_RATE || 1.35) },
       { key: 'default_lang', value: 'ar' },
-      { key: 'default_currency', value: 'SGD' },
+      { key: 'default_currency', value: 'USD' },
+      { key: 'catalog_currency', value: 'SGD' },
       {
         key: 'site_seo',
         value: {
@@ -965,7 +966,7 @@ adminRouter.get('/settings', async (_req, res, next) => {
         value: {
           items: [
             { q: 'How discreet is shipping?', a: 'Unmarked packaging with neutral labeling.' },
-            { q: 'What payment methods do you accept?', a: 'Secure checkout through Uniwebpay (SGD charge).' },
+            { q: 'What payment methods do you accept?', a: 'Secure checkout through Uniwebpay. Prices are in USD; your card is charged the SGD equivalent.' },
             { q: 'Where do you ship from?', a: 'UAE Warehouse with private delivery options.' }
           ]
         }
@@ -1177,6 +1178,102 @@ adminRouter.delete('/contact-messages/:id', async (req, res, next) => {
   try {
     await deleteContactMessage(req.params.id);
     res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post('/products/convert-sgd-to-usd', async (req, res, next) => {
+  try {
+    const { getUsdToSgdRate } = await import('../lib/uniwebpay.js');
+    const rate = getUsdToSgdRate(req.body?.rate);
+    if (!(rate > 0)) return res.status(400).json({ error: 'Invalid USD_TO_SGD_RATE' });
+
+    let catalogCurrency = 'SGD';
+    if (usePg()) {
+      const { rows: cur } = await dbQuery(`select value from public.settings where key = 'catalog_currency'`);
+      const raw = cur[0]?.value;
+      catalogCurrency = typeof raw === 'string' ? raw.replace(/^"|"$/g, '') : raw?.value || raw || 'SGD';
+    }
+    if (String(catalogCurrency).toUpperCase() === 'USD' && !req.body?.force) {
+      return res.status(409).json({
+        error: 'Catalog already marked USD. Pass { "force": true } only if you intentionally need to convert again.'
+      });
+    }
+
+    let updated = 0;
+    const samples = [];
+
+    if (usePg()) {
+      const { rows } = await dbQuery(
+        `select id, handle, price_aed, compare_at_aed from public.products where price_aed is not null`
+      );
+      for (const p of rows) {
+        const priceUsd = Math.round((Number(p.price_aed) / rate) * 100) / 100;
+        const compareUsd =
+          p.compare_at_aed != null && Number(p.compare_at_aed) > 0
+            ? Math.round((Number(p.compare_at_aed) / rate) * 100) / 100
+            : null;
+        await dbQuery(`update public.products set price_aed = $2, compare_at_aed = $3 where id = $1`, [
+          p.id,
+          priceUsd,
+          compareUsd
+        ]);
+        updated += 1;
+        if (samples.length < 5) {
+          samples.push({
+            handle: p.handle,
+            was_sgd: Number(p.price_aed),
+            now_usd: priceUsd
+          });
+        }
+      }
+      await dbQuery(
+        `insert into public.settings (key, value, updated_at)
+         values ('catalog_currency', to_jsonb('USD'::text), now()),
+                ('usd_to_sgd_rate', to_jsonb($1::text), now()),
+                ('default_currency', to_jsonb('USD'::text), now())
+         on conflict (key) do update set value = excluded.value, updated_at = now()`,
+        [String(rate)]
+      );
+      process.env.USD_TO_SGD_RATE = String(rate);
+      process.env.AED_TO_SGD_RATE = String(rate);
+    } else if (hasServiceRole()) {
+      const sb = getSupabaseAdmin();
+      const { data: products, error } = await sb.from('products').select('id, handle, price_aed, compare_at_aed');
+      if (error) throw error;
+      for (const p of products || []) {
+        const priceUsd = Math.round((Number(p.price_aed) / rate) * 100) / 100;
+        const compareUsd =
+          p.compare_at_aed != null && Number(p.compare_at_aed) > 0
+            ? Math.round((Number(p.compare_at_aed) / rate) * 100) / 100
+            : null;
+        const { error: upErr } = await sb
+          .from('products')
+          .update({ price_aed: priceUsd, compare_at_aed: compareUsd })
+          .eq('id', p.id);
+        if (upErr) throw upErr;
+        updated += 1;
+        if (samples.length < 5) samples.push({ handle: p.handle, was_sgd: Number(p.price_aed), now_usd: priceUsd });
+      }
+      await sb.from('settings').upsert([
+        { key: 'catalog_currency', value: 'USD' },
+        { key: 'usd_to_sgd_rate', value: String(rate) },
+        { key: 'default_currency', value: 'USD' }
+      ]);
+      process.env.USD_TO_SGD_RATE = String(rate);
+      process.env.AED_TO_SGD_RATE = String(rate);
+    } else {
+      return res.status(503).json({ error: 'DATABASE_URL or service role required' });
+    }
+
+    res.json({
+      ok: true,
+      rate,
+      updated,
+      samples,
+      message: `Converted ${updated} product(s) SGD→USD at rate ${rate}. Pay-time charge uses the same rate.`
+    });
   } catch (e) {
     next(e);
   }

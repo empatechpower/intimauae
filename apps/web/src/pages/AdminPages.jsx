@@ -746,11 +746,11 @@ function ProductEditor() {
                 <input required value={form.handle} onChange={(e) => setField('handle', e.target.value)} disabled={!isNew} />
               </label>
               <label>
-                Price (SGD)
+                Price (USD)
                 <input required type="number" step="0.01" value={form.price_aed} onChange={(e) => setField('price_aed', e.target.value)} />
               </label>
               <label>
-                Compare at (SGD)
+                Compare at (USD)
                 <input type="number" step="0.01" value={form.compare_at_aed} onChange={(e) => setField('compare_at_aed', e.target.value)} />
               </label>
               <label>
@@ -1963,6 +1963,8 @@ function SettingsAdmin() {
   const [paySaving, setPaySaving] = useState(false);
   const [sigTest, setSigTest] = useState(null);
   const [sigTesting, setSigTesting] = useState(false);
+  const [convertingPrices, setConvertingPrices] = useState(false);
+  const [convertResult, setConvertResult] = useState(null);
 
   const tabs = [
     ['seo', 'SEO'],
@@ -2090,6 +2092,34 @@ function SettingsAdmin() {
       setMsg(err.message || 'Failed to save payment settings.');
     } finally {
       setPaySaving(false);
+    }
+  }
+
+  async function convertCatalogToUsd() {
+    const rate = Number(payForm.rate || payConfigured.rate || 1.35);
+    if (
+      !window.confirm(
+        `Convert all product prices from SGD → USD by dividing by ${rate}?\n\nExample: 67.50 SGD → $50.00 USD.\nThis should only run once.`
+      )
+    ) {
+      return;
+    }
+    setConvertingPrices(true);
+    setConvertResult(null);
+    setMsg('');
+    try {
+      const res = await api('/api/admin/products/convert-sgd-to-usd', {
+        method: 'POST',
+        token,
+        body: { rate }
+      });
+      setConvertResult(res);
+      setMsg(res.message || 'Catalog converted to USD.');
+      await loadPaymentFlags();
+    } catch (err) {
+      setMsg(err.message || 'Price conversion failed.');
+    } finally {
+      setConvertingPrices(false);
     }
   }
 
@@ -2582,16 +2612,39 @@ function SettingsAdmin() {
             <label>
               <span className="adm-secret-label">
                 USD → SGD rate
-                <span className="adm-badge adm-badge--pending">Catalog is SGD — leave blank / use 1</span>
+                <span className="adm-badge">Catalog is USD — required for charges</span>
               </span>
               <input
                 value={payForm.rate}
                 onChange={(e) => setPayForm({ ...payForm, rate: e.target.value })}
-                placeholder="1 (prices are already SGD)"
+                placeholder="1.35"
                 inputMode="decimal"
                 autoComplete="off"
               />
             </label>
+            <p className="adm-muted" style={{ margin: '0 0 8px', fontSize: 13 }}>
+              Example: $50 × {payForm.rate || payConfigured.rate || '1.35'} = SGD charged at Uniwebpay. Current loaded rate:{' '}
+              <strong>{payConfigured.rate ?? '—'}</strong>
+            </p>
+            <div className="adm-row-actions" style={{ marginBottom: 12 }}>
+              <button type="button" className="adm-btn adm-btn--ghost" onClick={convertCatalogToUsd} disabled={convertingPrices}>
+                {convertingPrices ? 'Converting…' : 'Convert catalog SGD → USD (once)'}
+              </button>
+            </div>
+            {convertResult?.samples?.length > 0 && (
+              <div className="adm-panel" style={{ marginBottom: 12, padding: 12, fontSize: 13 }}>
+                <div>
+                  Converted {convertResult.updated} products at rate {convertResult.rate}
+                </div>
+                <ul style={{ margin: '8px 0 0', paddingInlineStart: 18 }}>
+                  {convertResult.samples.map((s) => (
+                    <li key={s.handle}>
+                      {s.handle}: {s.was_sgd} SGD → ${s.now_usd} USD
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div className="adm-row-actions" style={{ marginTop: 8 }}>
             <button className="adm-btn adm-btn--primary" type="submit" disabled={paySaving}>

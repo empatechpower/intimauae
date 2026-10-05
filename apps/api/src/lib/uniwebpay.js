@@ -100,9 +100,24 @@ export function uniwebHeaders({ storeId, requestTime, signature, keyVersion = 1 
   };
 }
 
-/** Catalog amounts are SGD — convert to integer cents for Uniwebpay. */
-export function aedToSgdCents(sgdAmount, _rateIgnored = 1) {
-  return Math.max(1, Math.round(Number(sgdAmount || 0) * 100));
+/** USD → SGD rate for Uniwebpay (gateway is SGD-only). */
+export function getUsdToSgdRate(explicit) {
+  const n = Number(explicit ?? process.env.USD_TO_SGD_RATE ?? process.env.AED_TO_SGD_RATE ?? 1.35);
+  return Number.isFinite(n) && n > 0 ? n : 1.35;
+}
+
+/**
+ * Catalog amounts are USD. Convert to SGD integer cents for Uniwebpay
+ * so $50 charges ~$50 USD worth in SGD (never 1:1 without FX).
+ */
+export function usdToSgdCents(usdAmount, rate) {
+  const sgd = Number(usdAmount || 0) * getUsdToSgdRate(rate);
+  return Math.max(1, Math.round(sgd * 100));
+}
+
+/** @deprecated Use usdToSgdCents — kept for older call sites. */
+export function aedToSgdCents(usdAmount, rate) {
+  return usdToSgdCents(usdAmount, rate);
 }
 
 /** 19-digit clientTransactionId as a digit string (sent as raw JSON number). */

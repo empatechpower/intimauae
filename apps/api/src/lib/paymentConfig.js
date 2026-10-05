@@ -126,7 +126,7 @@ export function paymentConfiguredFlags() {
     notifyUrlValue: process.env.UNIWEBPAY_NOTIFY_URL || null,
     keyVersion: Boolean(process.env.UNIWEBPAY_KEY_VERSION),
     keyVersionValue: process.env.UNIWEBPAY_KEY_VERSION || '1',
-    rate: Number(process.env.USD_TO_SGD_RATE || process.env.AED_TO_SGD_RATE || 1)
+    rate: Number(process.env.USD_TO_SGD_RATE || process.env.AED_TO_SGD_RATE || 1.35)
   };
 }
 

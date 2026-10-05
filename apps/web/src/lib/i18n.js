@@ -1,12 +1,12 @@
-/** Catalog amounts are stored in SGD (Uniwebpay charge currency). */
+/** Catalog amounts are stored in USD. Uniwebpay still charges SGD via FX. */
 export const STORE_CURRENCY = {
-  code: 'SGD',
-  symbol: 'S$',
-  label: 'SGD',
-  flag: '🇸🇬'
+  code: 'USD',
+  symbol: '$',
+  label: 'USD',
+  flag: '🇺🇸'
 };
 
-export const DEFAULT_CURRENCY = 'SGD';
+export const DEFAULT_CURRENCY = 'USD';
 /** Page source language for Google Translate (English). Display default is Arabic via googtrans. */
 export const DEFAULT_LANG = 'en';
 
@@ -15,9 +15,9 @@ export const LANGS = [
   { code: 'en', label: 'English', flag: '🇬🇧' }
 ];
 
-/** @deprecated Kept for any leftover imports — storefront is SGD-only. */
+/** @deprecated Kept for any leftover imports — storefront is USD-only. */
 export const CURRENCIES = {
-  SGD: STORE_CURRENCY
+  USD: STORE_CURRENCY
 };
 
 const dict = {
@@ -113,9 +113,9 @@ export function t(lang, key) {
   return (dict[lang] && dict[lang][key]) || dict.en[key] || key;
 }
 
-/** Format catalog price (amounts are SGD). currencyCode ignored — always SGD. */
-export function formatMoney(amountSgd) {
-  const n = Number(amountSgd || 0);
+/** Format catalog price (amounts are USD). Extra args ignored — always USD. */
+export function formatMoney(amountUsd) {
+  const n = Number(amountUsd || 0);
   return `${STORE_CURRENCY.symbol}${n.toFixed(2)}`;
 }
 

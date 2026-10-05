@@ -90,7 +90,8 @@ paymentsRouter.get('/config', async (_req, res) => {
   }
   res.json({
     currency: 'SGD',
-    displayCurrency: 'SGD',
+    displayCurrency: 'USD',
+    usdToSgdRate: Number(process.env.USD_TO_SGD_RATE || process.env.AED_TO_SGD_RATE || 1.35),
     checkoutFramesPk: process.env.CHECKOUT_FRAMES_PK || null,
     ready: Boolean(process.env.UNIWEBPAY_PRIVATE_KEY_PKCS8 && process.env.CHECKOUT_FRAMES_PK && process.env.UNIWEBPAY_STORE_ID)
   });
@@ -167,7 +168,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
       return res.status(404).json({ error: USER_ERROR });
     }
 
-    const amount = order.charge_sgd_cents || aedToSgdCents(order.total_aed, 1);
+    const amount = order.charge_sgd_cents || aedToSgdCents(order.total_aed);
     const clientTransactionId = newClientTxnId();
 
     const body = {

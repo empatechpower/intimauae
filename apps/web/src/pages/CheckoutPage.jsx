@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { formatMoney } from '../lib/i18n';
 import { media } from '../lib/media';
 
-const SHIPPING_SGD = 0;
+const SHIPPING_USD = 0;
 
 function loadCheckoutFrames() {
   if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
@@ -128,7 +128,7 @@ export default function CheckoutPage() {
     [cart]
   );
   const discount = Math.round(subtotal * discountPct * 100) / 100;
-  const total = Math.max(0, subtotal - discount + SHIPPING_SGD);
+  const total = Math.max(0, subtotal - discount + SHIPPING_USD);
 
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -384,7 +384,7 @@ export default function CheckoutPage() {
             <h2>Shipping method</h2>
             <div className="checkout-ship">
               <span>Standard · UAE Warehouse</span>
-              <strong>{SHIPPING_SGD ? formatMoney(SHIPPING_SGD) : 'Free'}</strong>
+              <strong>{SHIPPING_USD ? formatMoney(SHIPPING_USD) : 'Free'}</strong>
             </div>
           </section>
 
@@ -453,14 +453,17 @@ export default function CheckoutPage() {
             )}
             <div>
               <span>Shipping</span>
-              <span>{SHIPPING_SGD ? formatMoney(SHIPPING_SGD) : 'Free'}</span>
+              <span>{SHIPPING_USD ? formatMoney(SHIPPING_USD) : 'Free'}</span>
             </div>
             <div className="checkout-total">
               <span>Total</span>
               <strong>
-                <small>SGD</small> {formatMoney(total)}
+                <small>USD</small> {formatMoney(total)}
               </strong>
             </div>
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Your card is charged the SGD equivalent of this USD total via our payment partner.
+            </p>
           </div>
         </aside>
       </form>

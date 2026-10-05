@@ -133,7 +133,7 @@ Do this when switching to the client:
 | `VITE_API_URL` | `https://CLIENT-API.vercel.app` (set after API project exists; redeploy web) |
 | `VITE_CHECKOUT_FRAMES_PK` | Checkout Frames public key |
 | `VITE_DEFAULT_LANG` | `ar` |
-| `VITE_DEFAULT_CURRENCY` | `SGD` |
+| `VITE_DEFAULT_CURRENCY` | `USD` |
 
 5. Deploy → copy the storefront URL (e.g. `https://intimauae.vercel.app`).  
 6. Optional: **Settings → Domains** → add `www.clientdomain.com`.
@@ -167,7 +167,7 @@ Do this when switching to the client:
 | `UNIWEBPAY_NOTIFY_URL` | `https://THIS-API.vercel.app/api/payments/webhook` |
 | `UNIWEBPAY_WEBHOOK_SECRET` | Optional shared secret |
 | `CHECKOUT_FRAMES_PK` | Frames public key |
-| `USD_TO_SGD_RATE` | `1` if catalog is already SGD |
+| `USD_TO_SGD_RATE` | e.g. `1.35` — catalog is USD; Uniwebpay charge = USD × rate (SGD) |
 
 4. Deploy → open `https://CLIENT-API.vercel.app/api/health` → should show `"ok": true`.  
 5. Go back to **web** project → set `VITE_API_URL` → **Redeploy**.

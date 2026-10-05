@@ -48,7 +48,7 @@ const DEFAULTS = {
   page_faqs: {
     items: [
       { q: 'How discreet is shipping?', a: 'Unmarked packaging with neutral labeling.' },
-      { q: 'What payment methods do you accept?', a: 'Secure checkout through Uniwebpay (SGD charge).' },
+      { q: 'What payment methods do you accept?', a: 'Secure checkout through Uniwebpay. Prices are in USD; your card is charged the SGD equivalent.' },
       { q: 'Where do you ship from?', a: 'UAE Warehouse with private delivery options.' }
     ]
   },
