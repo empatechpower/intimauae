@@ -74,6 +74,27 @@ export default function CheckoutPage() {
     api('/api/payments/config')
       .then((d) => {
         if (!cancelled) setFramesPk(d.checkoutFramesPk || '');
+        // #region agent log
+        const pk = String(d.checkoutFramesPk || '');
+        fetch('http://127.0.0.1:7398/ingest/861237c1-f1ab-4e9f-a0fd-8609812f0e0b', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '668c64' },
+          body: JSON.stringify({
+            sessionId: '668c64',
+            runId: 'pre-fix',
+            hypothesisId: 'B',
+            location: 'CheckoutPage.jsx:config',
+            message: 'checkout frames pk loaded',
+            data: {
+              framesPkPrefix: pk.slice(0, 12) || null,
+              framesPkIsLive: pk.startsWith('pk_live_'),
+              framesPkIsTest: pk.startsWith('pk_test_'),
+              paymentReady: Boolean(d.ready)
+            },
+            timestamp: Date.now()
+          })
+        }).catch(() => {});
+        // #endregion
       })
       .catch(() => {
         if (!cancelled) setFramesError('Could not load payment configuration.');

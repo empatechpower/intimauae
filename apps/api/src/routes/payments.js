@@ -18,6 +18,16 @@ export const paymentsRouter = Router();
 
 const USER_ERROR = 'Something went wrong. Please try again or contact support.';
 
+function framesPkDiagnostics(pk) {
+  const s = String(pk || '');
+  return {
+    framesPkPrefix: s.slice(0, 12) || null,
+    framesPkIsLive: s.startsWith('pk_live_'),
+    framesPkIsTest: s.startsWith('pk_test_'),
+    framesPkLen: s.length
+  };
+}
+
 function extractRedirect(provider) {
   if (!provider || typeof provider !== 'object') return null;
   return (
@@ -170,6 +180,29 @@ paymentsRouter.post('/create', async (req, res, next) => {
 
     const amount = order.charge_sgd_cents || aedToSgdCents(order.total_aed);
     const clientTransactionId = newClientTxnId();
+    const payDebugBase = {
+      ...framesPkDiagnostics(framesPk),
+      acquirerType: 'CHECK_OUT_PAY',
+      amountSgdCents: Number(amount),
+      orderTotalUsd: Number(order.total_aed),
+      storeIdSuffix: String(storeId || '').slice(-4) || null
+    };
+
+    // #region agent log
+    fetch('http://127.0.0.1:7398/ingest/861237c1-f1ab-4e9f-a0fd-8609812f0e0b', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '668c64' },
+      body: JSON.stringify({
+        sessionId: '668c64',
+        runId: 'pre-fix',
+        hypothesisId: 'B',
+        location: 'payments.js:create:pre_pay',
+        message: 'pay request prepared',
+        data: payDebugBase,
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
 
     const body = {
       acquirerType: 'CHECK_OUT_PAY',
@@ -283,6 +316,32 @@ paymentsRouter.post('/create', async (req, res, next) => {
 
     const redirectUrl = extractRedirect(json);
     const providerOk = resp.ok && (json?.success !== false) && String(json?.code || '').toLowerCase() !== 'fail';
+
+    // #region agent log
+    fetch('http://127.0.0.1:7398/ingest/861237c1-f1ab-4e9f-a0fd-8609812f0e0b', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '668c64' },
+      body: JSON.stringify({
+        sessionId: '668c64',
+        runId: 'pre-fix',
+        hypothesisId: 'A,C,D,E',
+        location: 'payments.js:create:post_provider',
+        message: 'uniwebpay pay response',
+        data: {
+          ...payDebugBase,
+          providerOk,
+          httpStatus: resp.status,
+          providerCode: json?.code ?? null,
+          providerMessage: json?.message ?? null,
+          providerDataType: json?.data == null ? 'null' : typeof json?.data,
+          providerKeys: json && typeof json === 'object' ? Object.keys(json) : [],
+          hasRedirect: Boolean(redirectUrl),
+          cardTokenLen: cardToken ? String(cardToken).length : 0
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
     // Do NOT treat "request accepted" as money taken. Confirm via response fields and/or query.
     let paidNow = providerOk && providerIndicatesPaid(json);
     let queryJson = null;
@@ -367,7 +426,8 @@ paymentsRouter.post('/create', async (req, res, next) => {
             'Request-Time': headers['Request-Time'],
             Signature: headers.Signature
           },
-          provider: json
+          provider: json,
+          payDebug: payDebugBase
         },
         orderId
       });
