@@ -28,6 +28,20 @@ function framesPkDiagnostics(pk) {
   };
 }
 
+function headersToObject(h) {
+  const out = {};
+  try {
+    if (h && typeof h.forEach === 'function') {
+      h.forEach((value, key) => {
+        out[key] = value;
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
 function extractRedirect(provider) {
   if (!provider || typeof provider !== 'object') return null;
   return (
@@ -188,22 +202,6 @@ paymentsRouter.post('/create', async (req, res, next) => {
       storeIdSuffix: String(storeId || '').slice(-4) || null
     };
 
-    // #region agent log
-    fetch('http://127.0.0.1:7398/ingest/861237c1-f1ab-4e9f-a0fd-8609812f0e0b', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '668c64' },
-      body: JSON.stringify({
-        sessionId: '668c64',
-        runId: 'pre-fix',
-        hypothesisId: 'B',
-        location: 'payments.js:create:pre_pay',
-        message: 'pay request prepared',
-        data: payDebugBase,
-        timestamp: Date.now()
-      })
-    }).catch(() => {});
-    // #endregion
-
     const body = {
       acquirerType: 'CHECK_OUT_PAY',
       amount: Number(amount),
@@ -287,20 +285,23 @@ paymentsRouter.post('/create', async (req, res, next) => {
     });
 
     const base = process.env.UNIWEBPAY_BASE_URL || 'https://app.uniwebpay.com';
+    const payUrl = `${base}${path}`;
     let resp;
-    let raw;
+    let raw = '';
     let json;
+    let responseHeaders = {};
     try {
-      resp = await fetch(`${base}${path}`, {
+      resp = await fetch(payUrl, {
         method: 'POST',
         headers,
         body: bodyString
       });
+      responseHeaders = headersToObject(resp.headers);
       raw = await resp.text();
       try {
         json = JSON.parse(raw);
       } catch {
-        json = { raw };
+        json = { parseError: 'response_not_json', raw };
       }
     } catch (netErr) {
       await writeAudit({
@@ -308,7 +309,26 @@ paymentsRouter.post('/create', async (req, res, next) => {
         source: 'payments',
         event: 'provider_network_error',
         message: netErr.message || 'Network error calling Uniwebpay',
-        detail: { orderId, clientTransactionId: String(clientTransactionId), base, requestBody: bodyString, contentToSign },
+        detail: {
+          orderId,
+          clientTransactionId: String(clientTransactionId),
+          payUrl,
+          requestBody: bodyString,
+          contentToSign,
+          requestHeaders: {
+            'Store-Id': headers['Store-Id'],
+            'Request-Time': headers['Request-Time'],
+            Signature: headers.Signature,
+            'Content-Type': headers['Content-Type']
+          },
+          networkError: {
+            name: netErr?.name || null,
+            message: netErr?.message || String(netErr),
+            cause: netErr?.cause ? String(netErr.cause?.message || netErr.cause) : null,
+            code: netErr?.code || netErr?.cause?.code || null
+          },
+          payDebug: payDebugBase
+        },
         orderId
       });
       return res.status(502).json({ error: USER_ERROR });
@@ -316,32 +336,23 @@ paymentsRouter.post('/create', async (req, res, next) => {
 
     const redirectUrl = extractRedirect(json);
     const providerOk = resp.ok && (json?.success !== false) && String(json?.code || '').toLowerCase() !== 'fail';
+    const providerPayload = {
+      requestBody: bodyString,
+      contentToSign,
+      payUrl,
+      requestHeaders: {
+        'Store-Id': headers['Store-Id'],
+        'Request-Time': headers['Request-Time'],
+        Signature: headers.Signature,
+        'Content-Type': headers['Content-Type']
+      },
+      httpStatus: resp.status,
+      responseHeaders,
+      rawBody: raw,
+      response: json,
+      payDebug: payDebugBase
+    };
 
-    // #region agent log
-    fetch('http://127.0.0.1:7398/ingest/861237c1-f1ab-4e9f-a0fd-8609812f0e0b', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '668c64' },
-      body: JSON.stringify({
-        sessionId: '668c64',
-        runId: 'pre-fix',
-        hypothesisId: 'A,C,D,E',
-        location: 'payments.js:create:post_provider',
-        message: 'uniwebpay pay response',
-        data: {
-          ...payDebugBase,
-          providerOk,
-          httpStatus: resp.status,
-          providerCode: json?.code ?? null,
-          providerMessage: json?.message ?? null,
-          providerDataType: json?.data == null ? 'null' : typeof json?.data,
-          providerKeys: json && typeof json === 'object' ? Object.keys(json) : [],
-          hasRedirect: Boolean(redirectUrl),
-          cardTokenLen: cardToken ? String(cardToken).length : 0
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => {});
-    // #endregion
     // Do NOT treat "request accepted" as money taken. Confirm via response fields and/or query.
     let paidNow = providerOk && providerIndicatesPaid(json);
     let queryJson = null;
@@ -366,27 +377,14 @@ paymentsRouter.post('/create', async (req, res, next) => {
     if (usePg) {
       await dbQuery(
         `update public.payments set provider_payload=$2::jsonb, status=$3, updated_at=now() where client_transaction_id=$1`,
-        [
-          String(clientTransactionId),
-          JSON.stringify({
-            requestBody: bodyString,
-            contentToSign,
-            headers: {
-              'Store-Id': headers['Store-Id'],
-              'Request-Time': headers['Request-Time'],
-              Signature: headers.Signature
-            },
-            response: json
-          }),
-          paymentStatus
-        ]
+        [String(clientTransactionId), JSON.stringify(providerPayload), paymentStatus]
       );
       if (paidNow) {
         await dbQuery(`update public.orders set status='pending', updated_at=now() where id = $1`, [orderId]);
       }
     } else if (useMemory) {
       memUpsertPayment(clientTransactionId, {
-        provider_payload: { requestBody: bodyString, contentToSign, response: json },
+        provider_payload: providerPayload,
         status: paymentStatus
       });
       if (paidNow) {
@@ -398,7 +396,7 @@ paymentsRouter.post('/create', async (req, res, next) => {
       await sb
         .from('payments')
         .update({
-          provider_payload: { requestBody: bodyString, contentToSign, response: json },
+          provider_payload: providerPayload,
           status: paymentStatus
         })
         .eq('client_transaction_id', String(clientTransactionId));
@@ -416,18 +414,9 @@ paymentsRouter.post('/create', async (req, res, next) => {
         detail: {
           orderId,
           clientTransactionId: String(clientTransactionId),
-          httpStatus: resp.status,
           hasRedirect: Boolean(redirectUrl),
           hasCardToken: Boolean(cardToken),
-          requestBody: bodyString,
-          contentToSign,
-          headers: {
-            'Store-Id': headers['Store-Id'],
-            'Request-Time': headers['Request-Time'],
-            Signature: headers.Signature
-          },
-          provider: json,
-          payDebug: payDebugBase
+          ...providerPayload
         },
         orderId
       });
