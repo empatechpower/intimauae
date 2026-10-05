@@ -2596,25 +2596,6 @@ function SettingsAdmin() {
               Example: $50 × {payForm.rate || payConfigured.rate || '1.35'} = SGD charged at Uniwebpay. Current loaded rate:{' '}
               <strong>{payConfigured.rate ?? '—'}</strong>
             </p>
-            <div className="adm-row-actions" style={{ marginBottom: 12 }}>
-              <button type="button" className="adm-btn adm-btn--ghost" onClick={convertCatalogToUsd} disabled={convertingPrices}>
-                {convertingPrices ? 'Converting…' : 'Convert catalog SGD → USD (once)'}
-              </button>
-            </div>
-            {convertResult?.samples?.length > 0 && (
-              <div className="adm-panel" style={{ marginBottom: 12, padding: 12, fontSize: 13 }}>
-                <div>
-                  Converted {convertResult.updated} products at rate {convertResult.rate}
-                </div>
-                <ul style={{ margin: '8px 0 0', paddingInlineStart: 18 }}>
-                  {convertResult.samples.map((s) => (
-                    <li key={s.handle}>
-                      {s.handle}: {s.was_sgd} SGD → ${s.now_usd} USD
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
           <div className="adm-row-actions" style={{ marginTop: 8 }}>
             <button className="adm-btn adm-btn--primary" type="submit" disabled={paySaving}>
