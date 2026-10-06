@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_CURRENCY, DEFAULT_LANG } from '../lib/i18n';
 import { applyDocumentDir, GT_DEFAULT, readTranslateTarget } from '../lib/googleTranslate';
@@ -6,6 +7,35 @@ import { isProfileReadyForSession, resolveIsAdmin } from '../lib/auth';
 
 const CartCtx = createContext(null);
 const KEY = 'intimauae_cart_v2';
+
+function mergeCartWithCatalog(cartItems, products) {
+  if (!cartItems.length || !products?.length) return cartItems;
+  const byId = new Map();
+  const byHandle = new Map();
+  for (const p of products) {
+    if (p.id != null) byId.set(String(p.id), p);
+    if (p.handle) byHandle.set(p.handle, p);
+  }
+  let changed = false;
+  const next = cartItems.map((item) => {
+    const catalog =
+      (item.id != null && byId.get(String(item.id))) || (item.handle && byHandle.get(item.handle));
+    if (!catalog) return item;
+    const price = catalog.price_aed ?? catalog.price;
+    const samePrice =
+      Number(item.price) === Number(price) && Number(item.price_aed ?? item.price) === Number(price);
+    if (samePrice && item.title === catalog.title) return item;
+    changed = true;
+    return {
+      ...item,
+      title: catalog.title ?? item.title,
+      price,
+      price_aed: price,
+      image: catalog.images?.[0] || item.image
+    };
+  });
+  return changed ? next : cartItems;
+}
 
 export function AppProvider({ children }) {
   // UI string pack stays English (source). Display language comes from Google Translate.
@@ -41,6 +71,31 @@ export function AppProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    if (!cart.length) return undefined;
+    let cancelled = false;
+    const run = () => {
+      api('/api/catalog/products')
+        .then((d) => {
+          if (cancelled) return;
+          setCart((prev) => mergeCartWithCatalog(prev, d.products || []));
+        })
+        .catch(() => {});
+    };
+    run();
+    const onFocus = () => run();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') run();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [cart.length]);
 
   useEffect(() => {
     if (!supabase) {
@@ -117,7 +172,19 @@ export function AppProvider({ children }) {
           const id = product.id || product.handle;
           const found = prev.find((i) => (i.id || i.handle) === id);
           if (found) {
-            return prev.map((i) => ((i.id || i.handle) === id ? { ...i, qty: i.qty + qty } : i));
+            const price = product.price_aed ?? product.price;
+            return prev.map((i) =>
+              (i.id || i.handle) === id
+                ? {
+                    ...i,
+                    qty: i.qty + qty,
+                    price,
+                    price_aed: price,
+                    title: product.title ?? i.title,
+                    image: product.images?.[0] || product.image || i.image
+                  }
+                : i
+            );
           }
           return [
             ...prev,

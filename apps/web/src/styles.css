@@ -738,7 +738,9 @@
 .product-crumbs{font-size:13px;color:#64748b;margin-bottom:22px}
 .product-crumbs a{color:#64748b;text-decoration:none}
 .product-layout{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:start}
-.product-gallery{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start}
+.product-gallery{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:start;min-width:0}
+.product-gallery--solo{grid-template-columns:1fr}
+.product-gallery--solo .product-main-shot{grid-column:1}
 .product-thumbs{display:flex;flex-direction:column;gap:10px;max-height:min(72vh,640px);overflow:auto;padding-inline-end:2px}
 .product-thumb{width:88px;height:110px;padding:0;border:2px solid #e5e7eb;background:#fff;cursor:pointer;overflow:hidden;flex:0 0 auto}
 .product-thumb.is-active{border-color:#ff009a}

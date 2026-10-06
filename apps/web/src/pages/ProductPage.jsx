@@ -33,7 +33,7 @@ export default function ProductPage() {
           {product.title}
         </nav>
         <div className="product-layout">
-          <div className="product-gallery">
+          <div className={`product-gallery${images.length <= 1 ? ' product-gallery--solo' : ''}`}>
             {images.length > 1 && (
               <div className="product-thumbs" role="list">
                 {images.map((src) => (
