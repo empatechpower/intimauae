@@ -60,23 +60,21 @@ export const PRIVACY_HTML = `
 
 export const SHIPPING_HTML = `
 <h2>1. Where we ship from</h2>
-<p>Orders are fulfilled from our <strong>UAE warehouse</strong>. We ship across the United Arab Emirates and to selected international destinations where logistics and product regulations allow.</p>
+<p>Orders are shipped <strong>directly from China</strong>. We deliver to destinations where logistics and product regulations allow.</p>
 
 <h2>2. Discreet packaging</h2>
 <p>Privacy matters. All orders leave in <strong>unmarked outer packaging</strong> with neutral labelling. Product names and adult descriptions are not printed on the outside of the parcel. Inner packing is secure so items arrive protected and private.</p>
 
 <h2>3. Processing time</h2>
 <ul>
-  <li>In-stock items are typically prepared within <strong>1–3 business days</strong> (Sunday–Thursday, UAE / GST time).</li>
+  <li>In-stock items are typically prepared within <strong>1–3 business days</strong> before handoff to the courier.</li>
   <li>Custom, made-to-order, or special-order items may take longer; we will note this on the product page or contact you if needed.</li>
   <li>Orders placed on weekends or public holidays are processed on the next business day.</li>
 </ul>
 
 <h2>4. Delivery estimates</h2>
 <ul>
-  <li><strong>UAE local:</strong> usually 1–4 business days after dispatch.</li>
-  <li><strong>GCC / nearby regions:</strong> usually 3–10 business days after dispatch.</li>
-  <li><strong>International:</strong> usually 5–15 business days after dispatch, depending on customs and courier routes.</li>
+  <li>Delivery usually takes about <strong>15–20 days</strong> after dispatch, depending on destination, customs, and courier routes.</li>
 </ul>
 <p>Estimates are not guarantees. Delays can occur due to weather, courier capacity, peak seasons, or customs inspections.</p>
 
@@ -92,7 +90,7 @@ export const SHIPPING_HTML = `
 <h2>8. Customs &amp; duties (international)</h2>
 <p>International shipments may be subject to import duties, taxes, or fees charged by your country. These charges are the buyer’s responsibility unless otherwise stated at checkout. Intimauae cannot control customs clearance times.</p>
 
-<h2>9. Failed delivery &amp; returns to warehouse</h2>
+<h2>9. Failed delivery &amp; returns</h2>
 <p>If a parcel is returned because nobody was available, the address was refused, or customs withheld it, contact support promptly. We will help arrange a solution; extra shipping or storage costs may apply.</p>
 
 <h2>10. Restricted destinations</h2>
