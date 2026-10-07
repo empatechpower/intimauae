@@ -14,7 +14,6 @@ import { adminRouter } from './routes/admin.js';
 import { blogRouter } from './routes/blog.js';
 import { settingsPublicRouter } from './routes/settingsPublic.js';
 import { contactRouter } from './routes/contact.js';
-import { authRouter } from './routes/auth.js';
 import { loadPaymentConfigFromDb } from './lib/paymentConfig.js';
 import {
   securityHeaders,
@@ -85,7 +84,15 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/catalog', catalogRouter);
 app.use('/api/blog', blogRouter);
-app.use('/api/auth', authSensitiveRateLimit, authRouter);
+// Lazy-mount auth so Firebase Admin is never loaded for catalog/admin cold starts
+app.use('/api/auth', authSensitiveRateLimit, async (req, res, next) => {
+  try {
+    const { authRouter } = await import('./routes/auth.js');
+    return authRouter(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
 app.use('/api/orders', ordersRouter);
 app.use('/api/payments/webhook', webhookRateLimit);
 app.use('/api/payments', paymentRateLimit, paymentsRouter);

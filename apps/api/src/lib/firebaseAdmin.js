@@ -1,84 +1,41 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '../../../../');
-
-let initTried = false;
-let appInstance = null;
-
-function loadServiceAccount() {
-  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (rawJson) {
-    try {
-      // Vercel sometimes stores private_key newlines as literal \n
-      const parsed = JSON.parse(rawJson);
-      if (parsed?.private_key && typeof parsed.private_key === 'string') {
-        parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
-      }
-      return parsed;
-    } catch (e) {
-      console.warn('[firebase] invalid FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
-      return null;
-    }
-  }
-  const envPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  const candidates = [
-    envPath,
-    path.join(ROOT, 'firebase-service-account.json'),
-    path.join(process.cwd(), 'firebase-service-account.json'),
-    path.join(process.cwd(), '../firebase-service-account.json'),
-    path.join(process.cwd(), '../../firebase-service-account.json')
-  ].filter(Boolean);
-
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) {
-        return JSON.parse(fs.readFileSync(p, 'utf8'));
-      }
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
-/** Lazy-load Firebase Admin so catalog/admin routes do not pull it in on cold start. */
-export async function getFirebaseAdminApp() {
-  if (appInstance) return appInstance;
-  if (initTried) return null;
-  initTried = true;
-
-  const sa = loadServiceAccount();
-  if (!sa) {
-    console.warn('[firebase] service account not found — phone login disabled');
-    return null;
-  }
-
-  try {
-    const { cert, getApps, initializeApp } = await import('firebase-admin/app');
-    const existing = getApps();
-    appInstance = existing.length
-      ? existing[0]
-      : initializeApp({
-          credential: cert(sa),
-          projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID
-        });
-    return appInstance;
-  } catch (e) {
-    console.warn('[firebase] init failed:', e.message);
-    return null;
-  }
-}
+/**
+ * Verify Firebase ID tokens without firebase-admin (avoids Vercel serverless crashes / cold-start bloat).
+ * Uses Identity Toolkit REST: https://identitytoolkit.googleapis.com/v1/accounts:lookup
+ */
 
 export async function verifyFirebaseIdToken(idToken) {
-  const app = await getFirebaseAdminApp();
-  if (!app) {
-    const err = new Error('Firebase Admin not configured');
+  const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY;
+  if (!apiKey) {
+    const err = new Error('Firebase API key not configured');
     err.status = 500;
     throw err;
   }
-  const { getAuth } = await import('firebase-admin/auth');
-  return getAuth(app).verifyIdToken(idToken);
+  if (!idToken) {
+    const err = new Error('Missing idToken');
+    err.status = 400;
+    throw err;
+  }
+
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  const user = data?.users?.[0];
+  if (!res.ok || !user) {
+    const err = new Error(data?.error?.message || 'Invalid or expired OTP session');
+    err.status = 401;
+    err.code = data?.error?.message || 'auth/argument-error';
+    throw err;
+  }
+
+  return {
+    uid: user.localId,
+    phone_number: user.phoneNumber || null,
+    email: user.email || null
+  };
 }
