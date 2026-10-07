@@ -87,18 +87,19 @@ export const SHIPPING_HTML = `
 <h2>7. Address accuracy</h2>
 <p>Please double-check your shipping address, building details, and phone number. We are not responsible for delays or failed delivery caused by incorrect customer details. Re-delivery or return-to-sender fees may apply and are usually charged to the customer.</p>
 
-<h2>8. Customs &amp; duties (international)</h2>
-<p>International shipments may be subject to import duties, taxes, or fees charged by your country. These charges are the buyer’s responsibility unless otherwise stated at checkout. Intimauae cannot control customs clearance times.</p>
+<h2>8. Customs &amp; duties (sea freight / international)</h2>
+<p>For sea-freight and international shipments, if a customs issue arises, <strong>Intimauae will cover the related customs costs on our side</strong>. You will not be asked to pay those customs charges yourself in that situation.</p>
+<p>Please note that when customs holds or inspects a parcel, <strong>your delivery time will be longer</strong> than the normal estimate. We cannot control how long customs clearance takes, but we will handle the cost side for you.</p>
 
 <h2>9. Failed delivery &amp; returns</h2>
-<p>If a parcel is returned because nobody was available, the address was refused, or customs withheld it, contact support promptly. We will help arrange a solution; extra shipping or storage costs may apply.</p>
+<p>If a parcel is returned because nobody was available or the address was refused, contact support promptly. We will help arrange a solution; extra re-delivery or storage costs may apply in those cases. Customs-related holds are covered under section 8 above.</p>
 
 <h2>10. Restricted destinations</h2>
 <p>We may decline to ship to destinations where adult products are restricted or where our carriers cannot deliver safely. If this affects your order after payment, we will contact you to refund or arrange an alternative.</p>
 
 <h2>11. Questions</h2>
 <p>Email <a href="mailto:support@intimauae.ae">support@intimauae.ae</a> or use the Contact page for shipping help. Include your order number for faster support.</p>
-<p><em>Last updated: October 2026</em></p>
+<p><em>Last updated: 7 October 2026</em></p>
 `.trim();
 
 export const REFUND_HTML = `
