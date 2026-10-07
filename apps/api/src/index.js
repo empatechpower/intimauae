@@ -33,12 +33,29 @@ const isProd = process.env.NODE_ENV === 'production';
 const allowedOrigins = [
   process.env.APP_URL,
   process.env.CORS_ORIGIN,
+  'https://intimauae.ae',
+  'https://www.intimauae.ae',
   'http://127.0.0.1:5173',
   'http://localhost:5173'
 ]
   .filter(Boolean)
   .flatMap((o) => String(o).split(',').map((s) => s.trim()))
   .filter(Boolean);
+
+function originAllowed(origin) {
+  if (!origin) return true;
+  if (!isProd) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow Vercel preview / production frontends for this project
+  try {
+    const host = new URL(origin).hostname;
+    if (host === 'intimauae.ae' || host === 'www.intimauae.ae') return true;
+    if (host.endsWith('.vercel.app') && host.includes('intimauae')) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -47,10 +64,8 @@ app.use(globalRateLimit);
 app.use(
   cors({
     origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (!isProd) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error('Not allowed by CORS'));
+      // Never throw — throwing skips CORS headers and looks like a NetworkError in the browser
+      return cb(null, originAllowed(origin));
     },
     credentials: true
   })
