@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext';
 import { formatMoney } from '../lib/i18n';
 import { media } from '../lib/media';
 import RichEditor from '../components/RichEditor';
+import { AdminLoginPage } from './AuthPages';
 
 function money(n) {
   return formatMoney(Number(n || 0));
@@ -77,7 +78,7 @@ function RequireAdmin({ children }) {
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   if (!authReady) return <AuthGate />;
   if (!session) {
-    return <Navigate to="/login" replace state={{ from: returnTo }} />;
+    return <Navigate to="/admin/login" replace state={{ from: returnTo }} />;
   }
   if (!profileReady) return <AuthGate />;
   if (!isAdmin) return <Navigate to="/account" replace />;
@@ -177,7 +178,7 @@ function AdminShell() {
 
   async function logout() {
     if (supabase) await supabase.auth.signOut();
-    nav('/login');
+    nav('/admin/login');
   }
 
   return (
@@ -1634,7 +1635,7 @@ function AuditAdmin() {
   const { token } = useApp();
   const [audits, setAudits] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('unread');
   const [selected, setSelected] = useState(null);
 
   async function load() {
@@ -1658,12 +1659,26 @@ function AuditAdmin() {
     await load();
   }
 
+  async function markRead(a) {
+    const d = await api(`/api/admin/audits/${a.id}/read`, { method: 'PATCH', token });
+    const readAt = d?.audit?.read_at || new Date().toISOString();
+    setAudits((prev) => prev.map((row) => (row.id === a.id ? { ...row, read_at: readAt } : row)));
+    setSelected((cur) => (cur?.id === a.id ? { ...cur, read_at: readAt } : cur));
+  }
+
+  async function markAllRead() {
+    await api('/api/admin/audits/read-all', { method: 'POST', token });
+    await load();
+  }
+
   const list = audits.filter((a) => {
     if (filter === 'all') return true;
+    if (filter === 'unread') return !a.read_at;
     if (filter === 'errors') return a.level === 'error';
     if (filter === 'info') return a.level === 'info';
     return a.source === filter;
   });
+  const unreadCount = audits.filter((a) => !a.read_at).length;
   const { page, setPage, totalPages, pageItems, pageSize } = useClientPager(list, 15, filter);
 
   return (
@@ -1671,14 +1686,22 @@ function AuditAdmin() {
       <div className="adm-head">
         <div>
           <h1>Audit</h1>
-          <p className="adm-muted">Internal log of checkout/payment issues — customers never see these details</p>
+          <p className="adm-muted">
+            Internal log — customers only see short friendly messages. Mark items as read when reviewed.
+            {unreadCount ? ` · ${unreadCount} unread` : ''}
+          </p>
         </div>
-        <button type="button" className="adm-btn adm-btn--ghost" onClick={() => load()}>
-          Refresh
-        </button>
+        <div className="adm-row-actions">
+          <button type="button" className="adm-btn adm-btn--ghost" onClick={() => markAllRead()} disabled={!unreadCount}>
+            Mark all read
+          </button>
+          <button type="button" className="adm-btn adm-btn--ghost" onClick={() => load()}>
+            Refresh
+          </button>
+        </div>
       </div>
       <div className="adm-tabs" style={{ marginBottom: 14 }}>
-        {['all', 'errors', 'info', 'payments'].map((k) => (
+        {['unread', 'all', 'errors', 'info', 'payments', 'auth'].map((k) => (
           <button key={k} type="button" className={filter === k ? 'active' : ''} onClick={() => setFilter(k)}>
             {k}
           </button>
@@ -1694,6 +1717,7 @@ function AuditAdmin() {
                 <thead>
                   <tr>
                     <th>When</th>
+                    <th>Status</th>
                     <th>Level</th>
                     <th>Event</th>
                     <th>Message</th>
@@ -1703,11 +1727,12 @@ function AuditAdmin() {
                   {pageItems.map((a) => (
                     <tr
                       key={a.id}
-                      className={selected?.id === a.id ? 'adm-row--active' : ''}
-                      style={{ cursor: 'pointer' }}
+                      className={`${selected?.id === a.id ? 'adm-row--active' : ''}${!a.read_at ? ' adm-row--unread' : ''}`}
+                      style={{ cursor: 'pointer', fontWeight: a.read_at ? 400 : 700 }}
                       onClick={() => setSelected(a)}
                     >
                       <td>{a.created_at ? new Date(a.created_at).toLocaleString() : '—'}</td>
+                      <td>{a.read_at ? 'Read' : 'Unread'}</td>
                       <td>
                         <span className={`adm-badge ${a.level === 'error' ? 'adm-badge--unpaid' : 'adm-badge--success'}`}>
                           {a.level}
@@ -1723,7 +1748,7 @@ function AuditAdmin() {
                   ))}
                   {!list.length && (
                     <tr>
-                      <td colSpan={4} className="adm-muted">
+                      <td colSpan={5} className="adm-muted">
                         No audit entries yet.
                       </td>
                     </tr>
@@ -1741,12 +1766,18 @@ function AuditAdmin() {
               <p className="adm-muted" style={{ marginTop: 0 }}>
                 {selected.source} · {selected.level}
                 {selected.order_id ? ` · order ${String(selected.order_id).slice(0, 8)}` : ''}
+                {selected.read_at ? ' · read' : ' · unread'}
               </p>
               <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{selected.message}</p>
               {selected.detail != null && (
                 <pre className="adm-audit-detail">{JSON.stringify(selected.detail, null, 2)}</pre>
               )}
               <div className="adm-row-actions" style={{ marginTop: 14 }}>
+                {!selected.read_at && (
+                  <button type="button" className="adm-btn adm-btn--primary" onClick={() => markRead(selected)}>
+                    Mark as read
+                  </button>
+                )}
                 <button type="button" className="adm-btn adm-btn--danger" onClick={() => remove(selected)}>
                   Delete
                 </button>
@@ -2663,26 +2694,31 @@ function SettingsAdmin() {
 
 export default function AdminRoutes() {
   return (
-    <RequireAdmin>
-      <Routes>
-        <Route path="/*" element={<AdminShell />}>
-          <Route index element={<Dash />} />
-          <Route path="products" element={<ProductsList />} />
-          <Route path="products/new" element={<ProductEditor />} />
-          <Route path="products/:id" element={<ProductEditor />} />
-          <Route path="orders" element={<OrdersAdmin />} />
-          <Route path="customers" element={<CustomersAdmin />} />
-          <Route path="messages" element={<MessagesAdmin />} />
-          <Route path="audits" element={<AuditAdmin />} />
-          <Route path="discounts" element={<DiscountsAdmin />} />
-          <Route path="warehouses" element={<WarehousesAdmin />} />
-          <Route path="blog" element={<BlogList />} />
-          <Route path="blog/new" element={<BlogEditor />} />
-          <Route path="blog/:handle" element={<BlogEditor />} />
-          <Route path="settings" element={<SettingsAdmin />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
-        </Route>
-      </Routes>
-    </RequireAdmin>
+    <Routes>
+      <Route path="login" element={<AdminLoginPage />} />
+      <Route
+        element={
+          <RequireAdmin>
+            <AdminShell />
+          </RequireAdmin>
+        }
+      >
+        <Route index element={<Dash />} />
+        <Route path="products" element={<ProductsList />} />
+        <Route path="products/new" element={<ProductEditor />} />
+        <Route path="products/:id" element={<ProductEditor />} />
+        <Route path="orders" element={<OrdersAdmin />} />
+        <Route path="customers" element={<CustomersAdmin />} />
+        <Route path="messages" element={<MessagesAdmin />} />
+        <Route path="audits" element={<AuditAdmin />} />
+        <Route path="discounts" element={<DiscountsAdmin />} />
+        <Route path="warehouses" element={<WarehousesAdmin />} />
+        <Route path="blog" element={<BlogList />} />
+        <Route path="blog/new" element={<BlogEditor />} />
+        <Route path="blog/:handle" element={<BlogEditor />} />
+        <Route path="settings" element={<SettingsAdmin />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Route>
+    </Routes>
   );
 }

@@ -14,9 +14,11 @@ async function ensureAuditTable() {
       message text not null,
       detail jsonb,
       order_id text,
+      read_at timestamptz,
       created_at timestamptz not null default now()
     )
   `);
+  await dbQuery(`alter table public.audit_logs add column if not exists read_at timestamptz`);
   return true;
 }
 
@@ -32,13 +34,14 @@ export async function writeAudit({ level = 'error', source = 'payments', event, 
     message: String(message || ''),
     detail: detail ?? null,
     order_id: orderId ? String(orderId) : null,
+    read_at: null,
     created_at: new Date().toISOString()
   };
   try {
     if (await ensureAuditTable()) {
       await dbQuery(
-        `insert into public.audit_logs (id, level, source, event, message, detail, order_id)
-         values ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+        `insert into public.audit_logs (id, level, source, event, message, detail, order_id, read_at)
+         values ($1,$2,$3,$4,$5,$6::jsonb,$7,null)`,
         [row.id, row.level, row.source, row.event, row.message, JSON.stringify(row.detail), row.order_id]
       );
       return row;
@@ -56,7 +59,7 @@ export async function listAudits({ limit = 100, source } = {}) {
   if (await ensureAuditTable()) {
     if (source) {
       const { rows } = await dbQuery(
-        `select id, level, source, event, message, detail, order_id, created_at
+        `select id, level, source, event, message, detail, order_id, read_at, created_at
          from public.audit_logs
          where source = $1
          order by created_at desc
@@ -66,7 +69,7 @@ export async function listAudits({ limit = 100, source } = {}) {
       return { audits: rows, source: 'postgres' };
     }
     const { rows } = await dbQuery(
-      `select id, level, source, event, message, detail, order_id, created_at
+      `select id, level, source, event, message, detail, order_id, read_at, created_at
        from public.audit_logs
        order by created_at desc
        limit $1`,
@@ -77,6 +80,32 @@ export async function listAudits({ limit = 100, source } = {}) {
   let list = [...memAudits];
   if (source) list = list.filter((a) => a.source === source);
   return { audits: list.slice(0, limit), source: 'memory' };
+}
+
+export async function markAuditRead(id) {
+  const readAt = new Date().toISOString();
+  if (await ensureAuditTable()) {
+    const { rows } = await dbQuery(
+      `update public.audit_logs set read_at = $2 where id = $1 returning id, read_at`,
+      [id, readAt]
+    );
+    return rows[0] || { id, read_at: readAt };
+  }
+  const row = memAudits.find((a) => a.id === id);
+  if (row) row.read_at = readAt;
+  return { id, read_at: readAt };
+}
+
+export async function markAllAuditsRead() {
+  const readAt = new Date().toISOString();
+  if (await ensureAuditTable()) {
+    await dbQuery(`update public.audit_logs set read_at = $1 where read_at is null`, [readAt]);
+    return { ok: true, read_at: readAt };
+  }
+  for (const row of memAudits) {
+    if (!row.read_at) row.read_at = readAt;
+  }
+  return { ok: true, read_at: readAt };
 }
 
 export async function deleteAudit(id) {

@@ -3,7 +3,7 @@ import multer from 'multer';
 import { getSupabaseAdmin, hasServiceRole, requireAdmin } from '../lib/supabase.js';
 import { memAllOrders, memUpdateOrder, memoryEnabled } from '../lib/memoryStore.js';
 import { dbQuery, hasDatabaseUrl } from '../lib/db.js';
-import { listAudits, deleteAudit } from '../lib/audit.js';
+import { listAudits, deleteAudit, markAuditRead, markAllAuditsRead } from '../lib/audit.js';
 import { listContactMessages, updateContactMessage, deleteContactMessage } from './contact.js';
 import {
   PRIVACY_HTML,
@@ -1286,6 +1286,24 @@ adminRouter.get('/audits', async (req, res, next) => {
       source: req.query.source || undefined
     });
     res.json(data);
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post('/audits/read-all', async (req, res, next) => {
+  try {
+    const data = await markAllAuditsRead();
+    res.json(data);
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.patch('/audits/:id/read', async (req, res, next) => {
+  try {
+    const audit = await markAuditRead(req.params.id);
+    res.json({ ok: true, audit });
   } catch (e) {
     next(e);
   }

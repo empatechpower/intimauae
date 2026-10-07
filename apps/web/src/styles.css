@@ -780,6 +780,9 @@
 }
 .auth-card{max-width:420px;margin:40px auto;background:#131e2b;padding:28px;border:1px solid rgba(255,255,255,.08)}
 .auth-card input{width:100%;box-sizing:border-box;background:#0b1320;border:1px solid rgba(255,255,255,.15);color:#fff;padding:12px;margin:6px 0 14px}
+.auth-card .linkish{background:none;border:0;color:#ff009a;cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+.auth-card .muted{color:#94a3b8;font-size:13px;line-height:1.5}
+.auth-card label{display:block;font-size:13px;color:#cbd5e1}
 .auth-gate{max-width:420px;margin:48px auto;padding:28px;text-align:center;color:#94a3b8;font-weight:600}
 .account-layout{display:grid;grid-template-columns:240px 1fr;min-height:60vh;background:#f8fafc;color:#131e2b}
 .account-side{background:#fff;border-right:1px solid #e5e7eb;padding:8px 0}
@@ -1327,3 +1330,23 @@ html.translated-rtl main{
 .adm-tabs{display:flex;gap:8px;flex-wrap:wrap}
 .adm-tabs button{border:1px solid #dbe3ee;background:#fff;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:12px;font-weight:700}
 .adm-tabs button.active{background:#0b1320;color:#fff;border-color:#0b1320}
+
+/* Global toasts */
+.toast-stack{
+  position:fixed;z-index:200;right:16px;bottom:16px;display:flex;flex-direction:column;gap:10px;
+  max-width:min(420px,calc(100vw - 32px));pointer-events:none
+}
+.toast{
+  pointer-events:auto;display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;
+  background:#0b1320;color:#fff;box-shadow:0 12px 32px rgba(15,23,42,.28);font-size:14px;line-height:1.45;
+  border:1px solid rgba(255,255,255,.08);animation:toast-in .2s ease
+}
+.toast--success{background:#064e3b;border-color:#047857}
+.toast--error{background:#7f1d1d;border-color:#b91c1c}
+.toast--info{background:#0b1320}
+.toast__close{margin-inline-start:auto;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;cursor:pointer;opacity:.75}
+.toast__close:hover{opacity:1}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){
+  .toast-stack{left:16px;right:16px;max-width:none}
+}

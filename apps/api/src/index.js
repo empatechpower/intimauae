@@ -14,6 +14,7 @@ import { adminRouter } from './routes/admin.js';
 import { blogRouter } from './routes/blog.js';
 import { settingsPublicRouter } from './routes/settingsPublic.js';
 import { contactRouter } from './routes/contact.js';
+import { authRouter } from './routes/auth.js';
 import { loadPaymentConfigFromDb } from './lib/paymentConfig.js';
 import {
   securityHeaders,
@@ -21,7 +22,8 @@ import {
   paymentRateLimit,
   contactRateLimit,
   webhookRateLimit,
-  adminWriteRateLimit
+  adminWriteRateLimit,
+  authSensitiveRateLimit
 } from './lib/security.js';
 
 const app = express();
@@ -68,6 +70,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/catalog', catalogRouter);
 app.use('/api/blog', blogRouter);
+app.use('/api/auth', authSensitiveRateLimit, authRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/payments/webhook', webhookRateLimit);
 app.use('/api/payments', paymentRateLimit, paymentsRouter);
@@ -75,10 +78,31 @@ app.use('/api/admin', adminWriteRateLimit, adminRouter);
 app.use('/api/settings', settingsPublicRouter);
 app.use('/api/contact', contactRateLimit, contactRouter);
 
-app.use((err, _req, res, _next) => {
+app.use(async (err, req, res, _next) => {
   console.error(err);
   const status = err.status || (err.message === 'Not allowed by CORS' ? 403 : 500);
-  const message = isProd && status >= 500 ? 'Server error' : err.message || 'Server error';
+  if (status >= 500) {
+    try {
+      const { writeAudit } = await import('./lib/audit.js');
+      await writeAudit({
+        level: 'error',
+        source: 'api',
+        event: 'unhandled_error',
+        message: err.message || 'Server error',
+        detail: {
+          path: req.originalUrl || req.url,
+          method: req.method,
+          stack: err.stack || null
+        }
+      });
+    } catch {
+      /* ignore audit failures */
+    }
+  }
+  const message =
+    status >= 500
+      ? 'Something went wrong. Please try again.'
+      : err.message || 'Request failed';
   res.status(status).json({ error: message });
 });
 
