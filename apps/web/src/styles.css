@@ -783,6 +783,8 @@
 .auth-card .linkish{background:none;border:0;color:#ff009a;cursor:pointer;padding:0;font:inherit;text-decoration:underline}
 .auth-card .muted{color:#94a3b8;font-size:13px;line-height:1.5}
 .auth-card label{display:block;font-size:13px;color:#cbd5e1}
+.auth-recaptcha{margin:8px 0 16px;min-height:78px}
+.auth-recaptcha iframe{max-width:100%}
 .auth-gate{max-width:420px;margin:48px auto;padding:28px;text-align:center;color:#94a3b8;font-weight:600}
 .account-layout{display:grid;grid-template-columns:240px 1fr;min-height:60vh;background:#f8fafc;color:#131e2b}
 .account-side{background:#fff;border-right:1px solid #e5e7eb;padding:8px 0}

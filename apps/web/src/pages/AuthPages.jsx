@@ -43,32 +43,75 @@ export function LoginPage() {
     nav(redirectAfterLogin(false, from), { replace: true });
   }, [authReady, session, isAdmin, profileReady, nav, from]);
 
-  useEffect(() => {
-    return () => {
-      try {
-        recaptchaRef.current?.clear?.();
-      } catch {
-        /* ignore */
-      }
-      recaptchaRef.current = null;
-    };
-  }, []);
+  async function resetRecaptcha() {
+    try {
+      recaptchaRef.current?.clear?.();
+    } catch {
+      /* ignore */
+    }
+    recaptchaRef.current = null;
+    const el = document.getElementById('recaptcha-container');
+    if (el) el.innerHTML = '';
+  }
 
   async function ensureRecaptcha() {
     const auth = getFirebaseAuth();
-    if (!auth) throw new Error('otp_send_failed');
+    if (!auth) {
+      const err = new Error('firebase_setup');
+      err.code = 'auth/invalid-app-credential';
+      throw err;
+    }
     if (recaptchaRef.current) return recaptchaRef.current;
+    const el = document.getElementById('recaptcha-container');
+    if (!el) throw new Error('otp_send_failed');
+    // Visible widget is more reliable than invisible (Google Translate breaks invisible reCAPTCHA)
     recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible'
+      size: 'normal',
+      theme: 'dark'
     });
+    await recaptchaRef.current.render();
     return recaptchaRef.current;
+  }
+
+  useEffect(() => {
+    if (otpSent || session) return undefined;
+    if (!isFirebaseConfigured()) return undefined;
+    let cancelled = false;
+    ensureRecaptcha().catch(() => {
+      if (!cancelled) resetRecaptcha();
+    });
+    return () => {
+      cancelled = true;
+      resetRecaptcha();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount when login form is shown
+  }, [otpSent, session]);
+
+  async function reportClientAuthError(event, error, extra = {}) {
+    try {
+      await api('/api/auth/client-log', {
+        method: 'POST',
+        body: {
+          event,
+          message: String(error?.message || error || 'unknown'),
+          code: error?.code || null,
+          ...extra
+        }
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   async function sendOtp(e) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (!isFirebaseConfigured()) throw new Error('otp_send_failed');
+      if (!isFirebaseConfigured()) {
+        const err = new Error('firebase_setup');
+        err.code = 'auth/invalid-app-credential';
+        throw err;
+      }
       const e164 = normalizePhone(phone);
       if (!isValidE164(e164)) throw new Error('invalid_phone');
       const auth = getFirebaseAuth();
@@ -77,13 +120,13 @@ export function LoginPage() {
       setOtpSent(true);
       toastSuccess('Code sent. Check your SMS.');
     } catch (error) {
+      await reportClientAuthError('otp_send_failed', error, { phone: normalizePhone(phone) });
       toastError(friendlyAuthError(error, 'otp_send_failed'));
-      try {
-        recaptchaRef.current?.clear?.();
-      } catch {
-        /* ignore */
-      }
-      recaptchaRef.current = null;
+      await resetRecaptcha();
+      // Re-show captcha for another try
+      setTimeout(() => {
+        ensureRecaptcha().catch(() => {});
+      }, 300);
     } finally {
       setBusy(false);
     }
@@ -108,6 +151,7 @@ export function LoginPage() {
       if (error) throw error;
       toastSuccess('Logged in successfully.');
     } catch (error) {
+      await reportClientAuthError('otp_verify_failed', error, { phone: normalizePhone(phone) });
       toastError(friendlyAuthError(error, 'otp_invalid'));
     } finally {
       setBusy(false);
@@ -171,7 +215,14 @@ export function LoginPage() {
             />
           </>
         )}
-        <div id="recaptcha-container" />
+        {!otpSent && (
+          <div className="notranslate auth-recaptcha" translate="no">
+            <p className="muted" style={{ marginBottom: 8 }}>
+              Complete the check below, then tap Send code.
+            </p>
+            <div id="recaptcha-container" />
+          </div>
+        )}
         <button className="btn-pink" style={{ width: '100%' }} type="submit" disabled={busy}>
           {busy ? 'Please wait…' : otpSent ? t(lang, 'verifyOtp') : t(lang, 'sendOtp')}
         </button>

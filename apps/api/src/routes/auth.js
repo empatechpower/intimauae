@@ -218,6 +218,28 @@ authRouter.post('/save-phone', async (req, res, next) => {
   }
 });
 
+/** Browser-side auth failures (Firebase send OTP, etc.) so admin Audit can see them. */
+authRouter.post('/client-log', async (req, res) => {
+  try {
+    const event = String(req.body?.event || 'client_auth').slice(0, 80);
+    const message = String(req.body?.message || 'client auth error').slice(0, 500);
+    await writeAudit({
+      level: 'error',
+      source: 'auth',
+      event,
+      message,
+      detail: {
+        code: req.body?.code || null,
+        phone: req.body?.phone || null,
+        userAgent: req.headers['user-agent'] || null
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+  res.json({ ok: true });
+});
+
 /** Check whether a phone is already registered (for register form UX). */
 authRouter.get('/phone-available', async (req, res, next) => {
   try {

@@ -10,38 +10,60 @@ const FRIENDLY = {
   register_failed: 'We could not create your account. Please try again.',
   login_failed: 'Login failed. Please check your details and try again.',
   network: 'Connection problem. Please check your internet and try again.',
+  captcha: 'Please complete the security check (reCAPTCHA), then try again.',
+  firebase_setup: 'Phone login is not ready on this site yet. Please try again later.',
   generic: 'Something went wrong. Please try again.'
 };
 
-export function friendlyAuthError(error, fallbackKey = 'generic') {
-  const raw = String(error?.message || error || '').toLowerCase();
-  if (!raw) return FRIENDLY[fallbackKey];
+export function firebaseErrorCode(error) {
+  return String(error?.code || error?.message || '')
+    .toLowerCase()
+    .replace(/^firebase:\s*/i, '')
+    .trim();
+}
 
-  if (raw.includes('already registered') || raw.includes('phone already')) return FRIENDLY.phone_taken;
-  if (raw.includes('no account')) return FRIENDLY.no_account;
-  if (raw.includes('valid phone') || raw.includes('invalid phone')) return FRIENDLY.invalid_phone;
-  if (raw.includes('request a new otp') || raw.includes('request a new code')) return FRIENDLY.otp_needed;
-  if (
-    raw.includes('code') &&
-    (raw.includes('invalid') || raw.includes('expired') || raw.includes('incorrect'))
-  ) {
-    return FRIENDLY.otp_invalid;
+export function friendlyAuthError(error, fallbackKey = 'generic') {
+  const code = firebaseErrorCode(error);
+  const raw = String(error?.message || error || '').toLowerCase();
+  if (!raw && !code) return FRIENDLY[fallbackKey] || FRIENDLY.generic;
+
+  if (code.includes('otp_send_failed') || raw === 'otp_send_failed') return FRIENDLY.otp_send_failed;
+  if (code.includes('invalid_phone') || raw.includes('invalid_phone')) return FRIENDLY.invalid_phone;
+  if (code.includes('otp_needed')) return FRIENDLY.otp_needed;
+  if (code.includes('phone_taken') || raw.includes('already registered')) return FRIENDLY.phone_taken;
+  if (code.includes('no account') || raw.includes('no account')) return FRIENDLY.no_account;
+
+  if (code.includes('auth/invalid-phone-number') || code.includes('auth/missing-phone-number')) {
+    return FRIENDLY.invalid_phone;
   }
-  if (raw.includes('too-many-requests') || raw.includes('quota')) {
+  if (code.includes('auth/too-many-requests') || raw.includes('quota')) {
     return 'Too many attempts. Please wait a bit and try again.';
   }
+  if (
+    code.includes('auth/captcha-check-failed') ||
+    code.includes('auth/invalid-recaptcha') ||
+    code.includes('auth/missing-recaptcha') ||
+    raw.includes('recaptcha')
+  ) {
+    return FRIENDLY.captcha;
+  }
+  if (
+    code.includes('auth/invalid-app-credential') ||
+    code.includes('auth/app-not-authorized') ||
+    code.includes('auth/unauthorized-domain') ||
+    code.includes('auth/operation-not-allowed') ||
+    code.includes('auth/admin-restricted-operation')
+  ) {
+    return FRIENDLY.firebase_setup;
+  }
+  if (code.includes('auth/code-expired') || code.includes('auth/invalid-verification-code')) {
+    return FRIENDLY.otp_invalid;
+  }
   if (raw.includes('network') || raw.includes('failed to fetch')) return FRIENDLY.network;
-  if (raw.includes('firebase') || raw.includes('supabase') || raw.includes('configured')) {
-    return FRIENDLY.generic;
-  }
-  if (raw.includes('server error') || raw.includes('internal')) return FRIENDLY.generic;
 
-  // Short, safe-looking messages can pass through; long/technical ones get generic
-  const original = String(error?.message || error || '').trim();
-  if (original.length <= 120 && !/[{\\[\]}]/.test(original) && !original.includes('Error:')) {
-    return original;
-  }
-  return FRIENDLY[fallbackKey];
+  // Prefer explicit fallback for send/verify flows instead of vague "something went wrong"
+  if (fallbackKey && FRIENDLY[fallbackKey]) return FRIENDLY[fallbackKey];
+  return FRIENDLY.generic;
 }
 
 export { FRIENDLY };
