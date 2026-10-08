@@ -7,8 +7,9 @@ import { useToast } from '../context/ToastContext';
 import { t } from '../lib/i18n';
 import { api } from '../lib/api';
 import { getFirebaseAuth, isFirebaseConfigured } from '../lib/firebase';
-import { DIAL_CODES, isValidE164, normalizePhone } from '../lib/phone';
+import { DEFAULT_DIAL, isValidE164, normalizePhone } from '../lib/phone';
 import { friendlyAuthError } from '../lib/userErrors';
+import CountryDialSelect from '../components/CountryDialSelect';
 
 function redirectAfterLogin(isAdmin, from) {
   if (typeof from === 'string' && from.startsWith('/')) {
@@ -26,7 +27,7 @@ export function LoginPage() {
   const location = useLocation();
   const from = location.state?.from;
 
-  const [dial, setDial] = useState('+971');
+  const [dial, setDial] = useState(DEFAULT_DIAL);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -176,37 +177,19 @@ export function LoginPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <form className="auth-card" onSubmit={otpSent ? verifyOtp : sendOtp}>
-        <h1 style={{ marginTop: 0 }}>{t(lang, 'login')}</h1>
+    <main className="auth-screen">
+      <form className="auth-card auth-card--rich" onSubmit={otpSent ? verifyOtp : sendOtp}>
+        <div className="auth-card__brand">Intimauae</div>
+        <h1>{t(lang, 'login')}</h1>
         {location.state?.registered && (
-          <p className="muted" style={{ marginTop: 0, color: '#4ade80' }}>
-            Account created. Enter your phone number to receive a login code.
-          </p>
+          <p className="auth-banner auth-banner--ok">Account created. Enter your phone to get a login code.</p>
         )}
         {typeof from === 'string' && from.startsWith('/checkout') && (
-          <p className="muted" style={{ marginTop: 0 }}>
-            Log in or create an account to complete your purchase.
-          </p>
+          <p className="auth-banner">Log in to complete your purchase.</p>
         )}
-        <p className="muted" style={{ marginTop: 0 }}>
-          We send a one-time code to your phone. You’ll stay signed in for about 30 days.
-        </p>
         <label>{t(lang, 'phone')}</label>
         <div className="auth-phone-row">
-          <select
-            className="auth-dial"
-            value={dial}
-            onChange={(e) => setDial(e.target.value)}
-            disabled={otpSent || busy}
-            aria-label="Country code"
-          >
-            {DIAL_CODES.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          <CountryDialSelect value={dial} onChange={setDial} disabled={otpSent || busy} />
           <input
             type="tel"
             required
@@ -239,14 +222,13 @@ export function LoginPage() {
             <div id="recaptcha-container" />
           </div>
         )}
-        <button className="btn-pink" style={{ width: '100%' }} type="submit" disabled={busy}>
+        <button className="btn-pink auth-submit" type="submit" disabled={busy}>
           {busy ? 'Please wait…' : otpSent ? t(lang, 'verifyOtp') : t(lang, 'sendOtp')}
         </button>
         {otpSent && (
           <button
             type="button"
-            className="btn-ghost"
-            style={{ width: '100%', marginTop: 10 }}
+            className="btn-ghost auth-secondary"
             disabled={busy}
             onClick={() => {
               setOtpSent(false);
@@ -258,11 +240,14 @@ export function LoginPage() {
             Change number / resend
           </button>
         )}
-        <p style={{ marginTop: 14 }}>
-          <Link to="/register" state={from ? { from } : undefined}>
+        <div className="auth-links">
+          <Link className="auth-link-muted" to="/forgot-password">
+            {t(lang, 'forgotPassword')}
+          </Link>
+          <Link className="auth-link-cta" to="/register" state={from ? { from } : undefined}>
             {t(lang, 'register')}
           </Link>
-        </p>
+        </div>
       </form>
     </main>
   );
@@ -325,12 +310,11 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <form className="auth-card" onSubmit={onSubmit}>
-        <h1 style={{ marginTop: 0 }}>Admin login</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Sign in with your admin email and password.
-        </p>
+    <main className="auth-screen">
+      <form className="auth-card auth-card--rich" onSubmit={onSubmit}>
+        <div className="auth-card__brand">Intimauae Admin</div>
+        <h1>Admin login</h1>
+        <p className="muted">Sign in with your admin email and password.</p>
         <label>Email</label>
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
         <label>Password</label>
@@ -341,12 +325,14 @@ export function AdminLoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           disabled={busy}
         />
-        <button className="btn-pink" style={{ width: '100%' }} type="submit" disabled={busy}>
+        <button className="btn-pink auth-submit" type="submit" disabled={busy}>
           {busy ? 'Please wait…' : 'Log in'}
         </button>
-        <p style={{ marginTop: 14 }}>
-          <Link to="/forgot-password">Forgot password</Link>
-        </p>
+        <div className="auth-links">
+          <Link className="auth-link-muted" to="/forgot-password">
+            Forgot password
+          </Link>
+        </div>
       </form>
     </main>
   );
@@ -360,7 +346,7 @@ export function RegisterPage() {
   const from = location.state?.from;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [dial, setDial] = useState('+971');
+  const [dial, setDial] = useState(DEFAULT_DIAL);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -446,31 +432,18 @@ export function RegisterPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <form className="auth-card" onSubmit={onSubmit}>
-        <h1 style={{ marginTop: 0 }}>{t(lang, 'register')}</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Create an account with your details. After that you’ll log in with your phone number and SMS code — you won’t stay logged in from registration alone.
-        </p>
+    <main className="auth-screen">
+      <form className="auth-card auth-card--rich" onSubmit={onSubmit}>
+        <div className="auth-card__brand">Intimauae</div>
+        <h1>{t(lang, 'register')}</h1>
+        <p className="muted">Create your account, then log in with a phone SMS code.</p>
         <label>{t(lang, 'fullName')}</label>
         <input required value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={busy} />
         <label>{t(lang, 'email')}</label>
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
         <label>{t(lang, 'phone')}</label>
         <div className="auth-phone-row">
-          <select
-            className="auth-dial"
-            value={dial}
-            onChange={(e) => setDial(e.target.value)}
-            disabled={busy}
-            aria-label="Country code"
-          >
-            {DIAL_CODES.map((d) => (
-              <option key={d.code} value={d.code}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          <CountryDialSelect value={dial} onChange={setDial} disabled={busy} />
           <input
             type="tel"
             required
@@ -489,14 +462,15 @@ export function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           disabled={busy}
         />
-        <button className="btn-pink" style={{ width: '100%' }} type="submit" disabled={busy}>
+        <button className="btn-pink auth-submit" type="submit" disabled={busy}>
           {busy ? 'Please wait…' : t(lang, 'register')}
         </button>
-        <p style={{ marginTop: 14 }}>
-          <Link to="/login" state={from ? { from } : undefined}>
+        <div className="auth-links">
+          <span className="auth-links__hint">Already have an account?</span>
+          <Link className="auth-link-cta" to="/login" state={from ? { from } : undefined}>
             {t(lang, 'login')}
           </Link>
-        </p>
+        </div>
       </form>
     </main>
   );
@@ -514,7 +488,7 @@ export function ForgotPasswordPage() {
     try {
       if (!supabase) throw new Error('generic');
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/admin/login`
+        redirectTo: `${window.location.origin}/login`
       });
       if (error) throw error;
       toastSuccess('If that email exists, we sent a reset link.');
@@ -526,19 +500,21 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <main className="page-wrap">
-      <form className="auth-card" onSubmit={onSubmit}>
-        <h1 style={{ marginTop: 0 }}>{t(lang, 'forgotPassword')}</h1>
+    <main className="auth-screen">
+      <form className="auth-card auth-card--rich" onSubmit={onSubmit}>
+        <div className="auth-card__brand">Intimauae</div>
+        <h1>{t(lang, 'forgotPassword')}</h1>
+        <p className="muted">Enter the email you used when registering. We’ll send a reset link.</p>
         <label>{t(lang, 'email')}</label>
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
-        <button className="btn-pink" style={{ width: '100%' }} type="submit" disabled={busy}>
+        <button className="btn-pink auth-submit" type="submit" disabled={busy}>
           Send reset link
         </button>
-        <p style={{ marginTop: 14 }}>
-          <Link to="/admin/login">Admin login</Link>
-          {' · '}
-          <Link to="/login">{t(lang, 'login')}</Link>
-        </p>
+        <div className="auth-links">
+          <Link className="auth-link-cta" to="/login">
+            {t(lang, 'login')}
+          </Link>
+        </div>
       </form>
     </main>
   );
