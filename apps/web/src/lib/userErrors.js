@@ -47,6 +47,9 @@ export function friendlyAuthError(error, fallbackKey = 'generic') {
   ) {
     return FRIENDLY.captcha;
   }
+  if (code.includes('auth/billing-not-enabled')) {
+    return 'SMS login is not enabled on the server yet (billing required). Please try again later.';
+  }
   if (
     code.includes('auth/invalid-app-credential') ||
     code.includes('auth/app-not-authorized') ||

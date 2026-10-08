@@ -1,5 +1,5 @@
-/** Normalize to E.164. Default country: UAE (+971). */
-export function normalizePhone(input, defaultCountry = 'AE') {
+/** Normalize to E.164. dialOrCountry can be "+971" or "AE". */
+export function normalizePhone(input, dialOrCountry = '+971') {
   const raw = String(input || '').trim();
   if (!raw) return '';
   let digits = raw.replace(/[^\d+]/g, '');
@@ -8,12 +8,17 @@ export function normalizePhone(input, defaultCountry = 'AE') {
     return `+${digits.slice(1).replace(/\D/g, '')}`;
   }
   const only = digits.replace(/\D/g, '');
-  if (defaultCountry === 'AE') {
-    if (only.startsWith('971')) return `+${only}`;
-    if (only.startsWith('0')) return `+971${only.slice(1)}`;
-    return `+971${only}`;
-  }
-  return only ? `+${only}` : '';
+  if (!only) return '';
+
+  let dial = '+971';
+  if (String(dialOrCountry).startsWith('+')) dial = String(dialOrCountry);
+  else if (dialOrCountry === 'NG') dial = '+234';
+  else if (dialOrCountry === 'AE') dial = '+971';
+
+  const dialDigits = dial.replace(/\D/g, '');
+  if (only.startsWith(dialDigits)) return `+${only}`;
+  const national = only.startsWith('0') ? only.slice(1) : only;
+  return `+${dialDigits}${national}`;
 }
 
 export function isValidE164(phone) {

@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { t } from '../lib/i18n';
 import { api } from '../lib/api';
 import { getFirebaseAuth, isFirebaseConfigured } from '../lib/firebase';
-import { isValidE164, normalizePhone } from '../lib/phone';
+import { DIAL_CODES, isValidE164, normalizePhone } from '../lib/phone';
 import { friendlyAuthError } from '../lib/userErrors';
 
 function redirectAfterLogin(isAdmin, from) {
@@ -26,6 +26,7 @@ export function LoginPage() {
   const location = useLocation();
   const from = location.state?.from;
 
+  const [dial, setDial] = useState('+971');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -112,7 +113,7 @@ export function LoginPage() {
         err.code = 'auth/invalid-app-credential';
         throw err;
       }
-      const e164 = normalizePhone(phone);
+      const e164 = normalizePhone(phone, dial);
       if (!isValidE164(e164)) throw new Error('invalid_phone');
       const auth = getFirebaseAuth();
       const verifier = await ensureRecaptcha();
@@ -120,7 +121,7 @@ export function LoginPage() {
       setOtpSent(true);
       toastSuccess('Code sent. Check your SMS.');
     } catch (error) {
-      await reportClientAuthError('otp_send_failed', error, { phone: normalizePhone(phone) });
+      await reportClientAuthError('otp_send_failed', error, { phone: normalizePhone(phone, dial) });
       toastError(friendlyAuthError(error, 'otp_send_failed'));
       await resetRecaptcha();
       // Re-show captcha for another try
@@ -151,7 +152,7 @@ export function LoginPage() {
       if (error) throw error;
       toastSuccess('Logged in successfully.');
     } catch (error) {
-      await reportClientAuthError('otp_verify_failed', error, { phone: normalizePhone(phone) });
+      await reportClientAuthError('otp_verify_failed', error, { phone: normalizePhone(phone, dial) });
       toastError(friendlyAuthError(error, 'otp_invalid'));
     } finally {
       setBusy(false);
@@ -192,14 +193,29 @@ export function LoginPage() {
           We send a one-time code to your phone. You’ll stay signed in for about 30 days.
         </p>
         <label>{t(lang, 'phone')}</label>
-        <input
-          type="tel"
-          required
-          placeholder="05xxxxxxxx or +9715xxxxxxxx"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          disabled={otpSent || busy}
-        />
+        <div className="auth-phone-row">
+          <select
+            className="auth-dial"
+            value={dial}
+            onChange={(e) => setDial(e.target.value)}
+            disabled={otpSent || busy}
+            aria-label="Country code"
+          >
+            {DIAL_CODES.map((d) => (
+              <option key={d.code} value={d.code}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="tel"
+            required
+            placeholder="501234567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={otpSent || busy}
+          />
+        </div>
         {otpSent && (
           <>
             <label>{t(lang, 'otpCode')}</label>
@@ -344,6 +360,7 @@ export function RegisterPage() {
   const from = location.state?.from;
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [dial, setDial] = useState('+971');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -362,7 +379,7 @@ export function RegisterPage() {
     setBlockingAutoLogin(true);
     try {
       if (!supabase) throw new Error('register_failed');
-      const e164 = normalizePhone(phone);
+      const e164 = normalizePhone(phone, dial);
       if (!isValidE164(e164)) throw new Error('invalid_phone');
 
       try {
@@ -440,14 +457,29 @@ export function RegisterPage() {
         <label>{t(lang, 'email')}</label>
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
         <label>{t(lang, 'phone')}</label>
-        <input
-          type="tel"
-          required
-          placeholder="05xxxxxxxx or +9715xxxxxxxx"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          disabled={busy}
-        />
+        <div className="auth-phone-row">
+          <select
+            className="auth-dial"
+            value={dial}
+            onChange={(e) => setDial(e.target.value)}
+            disabled={busy}
+            aria-label="Country code"
+          >
+            {DIAL_CODES.map((d) => (
+              <option key={d.code} value={d.code}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="tel"
+            required
+            placeholder="501234567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            disabled={busy}
+          />
+        </div>
         <label>{t(lang, 'password')}</label>
         <input
           type="password"
