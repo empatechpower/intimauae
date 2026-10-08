@@ -134,6 +134,11 @@ export function LoginPage() {
     <main className="page-wrap">
       <form className="auth-card" onSubmit={otpSent ? verifyOtp : sendOtp}>
         <h1 style={{ marginTop: 0 }}>{t(lang, 'login')}</h1>
+        {location.state?.registered && (
+          <p className="muted" style={{ marginTop: 0, color: '#4ade80' }}>
+            Account created. Enter your phone number to receive a login code.
+          </p>
+        )}
         {typeof from === 'string' && from.startsWith('/checkout') && (
           <p className="muted" style={{ marginTop: 0 }}>
             Log in or create an account to complete your purchase.
@@ -291,15 +296,19 @@ export function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  /** While finishing signup we may briefly have a session — do not auto-redirect to account. */
+  const [blockingAutoLogin, setBlockingAutoLogin] = useState(false);
 
   useEffect(() => {
+    if (blockingAutoLogin) return;
     if (!authReady || !session || !profileReady) return;
     nav(redirectAfterLogin(isAdmin, from), { replace: true });
-  }, [authReady, session, isAdmin, profileReady, nav, from]);
+  }, [authReady, session, isAdmin, profileReady, nav, from, blockingAutoLogin]);
 
   async function onSubmit(e) {
     e.preventDefault();
     setBusy(true);
+    setBlockingAutoLogin(true);
     try {
       if (!supabase) throw new Error('register_failed');
       const e164 = normalizePhone(phone);
@@ -326,29 +335,33 @@ export function RegisterPage() {
       });
       if (error) throw error;
 
-      const userId = data?.user?.id;
-      if (userId && data?.session) {
-        await supabase.from('profiles').update({ phone: e164, full_name: fullName }).eq('id', userId);
-      }
+      // Save phone via API (Postgres). Do not leave the user logged in after register.
       await api('/api/auth/save-phone', {
         method: 'POST',
         body: { email, phone: e164, full_name: fullName }
       });
 
-      if (data?.session) {
-        toastSuccess('Account created.');
-      } else {
-        toastSuccess('Account created. You can log in with your phone number.');
-        setTimeout(() => nav('/login', { state: from ? { from } : undefined }), 900);
+      if (data?.session || supabase) {
+        await supabase.auth.signOut();
       }
+
+      toastSuccess('Account created. Log in with your phone number to continue.');
+      nav('/login', { replace: true, state: from ? { from, registered: true } : { registered: true } });
     } catch (error) {
+      // If signup created a session then failed later, still clear it
+      try {
+        await supabase?.auth.signOut();
+      } catch {
+        /* ignore */
+      }
+      setBlockingAutoLogin(false);
       toastError(friendlyAuthError(error, 'register_failed'));
     } finally {
       setBusy(false);
     }
   }
 
-  if (!authReady || (session && !profileReady)) {
+  if (!authReady || (session && !profileReady && !blockingAutoLogin)) {
     return (
       <main className="page-wrap">
         <div className="auth-gate">Restoring session…</div>
@@ -356,7 +369,7 @@ export function RegisterPage() {
     );
   }
 
-  if (session) {
+  if (session && !blockingAutoLogin) {
     return (
       <main className="page-wrap">
         <div className="auth-gate">Redirecting…</div>
@@ -369,7 +382,7 @@ export function RegisterPage() {
       <form className="auth-card" onSubmit={onSubmit}>
         <h1 style={{ marginTop: 0 }}>{t(lang, 'register')}</h1>
         <p className="muted" style={{ marginTop: 0 }}>
-          Create an account to checkout and track your orders. You’ll log in later with a phone code.
+          Create an account with your details. After that you’ll log in with your phone number and SMS code — you won’t stay logged in from registration alone.
         </p>
         <label>{t(lang, 'fullName')}</label>
         <input required value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={busy} />

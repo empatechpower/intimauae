@@ -115,13 +115,10 @@ authRouter.post('/phone-login', async (req, res, next) => {
 /**
  * After signup, persist phone on profile (works even if email confirm delays session).
  * Body: { email, phone, full_name? }
+ * Prefer DATABASE_URL updates — avoids RLS / wrong Supabase key "permission denied for table profiles".
  */
 authRouter.post('/save-phone', async (req, res, next) => {
   try {
-    if (!hasServiceRole()) {
-      await auditAuth('save_phone_config', 'Missing Supabase service role', null);
-      return res.status(500).json({ error: USER_MSG.registerFailed });
-    }
     const email = String(req.body?.email || '')
       .trim()
       .toLowerCase();
@@ -130,7 +127,10 @@ authRouter.post('/save-phone', async (req, res, next) => {
     if (!email) return res.status(400).json({ error: USER_MSG.badRequest });
     if (!isValidE164(phone)) return res.status(400).json({ error: USER_MSG.invalidPhone });
 
-    const sb = getSupabaseAdmin();
+    if (!hasDatabaseUrl() && !hasServiceRole()) {
+      await auditAuth('save_phone_config', 'Missing DATABASE_URL and Supabase service role', null);
+      return res.status(500).json({ error: USER_MSG.registerFailed });
+    }
 
     // Reject if phone already used by another account
     if (hasDatabaseUrl()) {
@@ -145,6 +145,7 @@ authRouter.post('/save-phone', async (req, res, next) => {
       );
       if (taken[0]) return res.status(409).json({ error: USER_MSG.phoneTaken });
     } else {
+      const sb = getSupabaseAdmin();
       const { data: taken } = await sb.from('profiles').select('id, email').eq('phone', phone).maybeSingle();
       if (taken && String(taken.email || '').toLowerCase() !== email) {
         return res.status(409).json({ error: USER_MSG.phoneTaken });
@@ -153,15 +154,20 @@ authRouter.post('/save-phone', async (req, res, next) => {
 
     let profileRow = null;
     if (hasDatabaseUrl()) {
-      const { rows } = await dbQuery(
-        `select id, email, phone, created_at
-           from public.profiles
-          where lower(coalesce(email,'')) = $1
-          limit 1`,
-        [email]
-      );
-      profileRow = rows[0] || null;
+      // Trigger may create profile a moment after auth.users insert — retry briefly
+      for (let i = 0; i < 6 && !profileRow; i++) {
+        const { rows } = await dbQuery(
+          `select id, email, phone, created_at
+             from public.profiles
+            where lower(coalesce(email,'')) = $1
+            limit 1`,
+          [email]
+        );
+        profileRow = rows[0] || null;
+        if (!profileRow) await new Promise((r) => setTimeout(r, 250));
+      }
     } else {
+      const sb = getSupabaseAdmin();
       const { data } = await sb.from('profiles').select('id, email, phone, created_at').ilike('email', email).maybeSingle();
       profileRow = data;
     }
@@ -175,17 +181,32 @@ authRouter.post('/save-phone', async (req, res, next) => {
       return res.status(403).json({ error: USER_MSG.registerFailed });
     }
 
-    const patch = { phone };
-    if (fullName) patch.full_name = fullName;
-    const { error: upErr } = await sb.from('profiles').update(patch).eq('id', profileRow.id);
-    if (upErr) throw upErr;
+    if (hasDatabaseUrl()) {
+      await dbQuery(
+        `update public.profiles
+            set phone = $1,
+                full_name = case when $2 <> '' then $2 else full_name end,
+                updated_at = now()
+          where id = $3`,
+        [phone, fullName, profileRow.id]
+      );
+    } else {
+      const sb = getSupabaseAdmin();
+      const patch = { phone };
+      if (fullName) patch.full_name = fullName;
+      const { error: upErr } = await sb.from('profiles').update(patch).eq('id', profileRow.id);
+      if (upErr) throw upErr;
+    }
 
-    try {
-      await sb.auth.admin.updateUserById(profileRow.id, {
-        user_metadata: { phone, full_name: fullName || undefined }
-      });
-    } catch {
-      /* metadata sync is best-effort */
+    if (hasServiceRole()) {
+      try {
+        const sb = getSupabaseAdmin();
+        await sb.auth.admin.updateUserById(profileRow.id, {
+          user_metadata: { phone, full_name: fullName || undefined }
+        });
+      } catch {
+        /* metadata sync is best-effort */
+      }
     }
 
     res.json({ ok: true, phone });
